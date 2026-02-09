@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Zap,
   Rocket,
   Eye,
   Search,
@@ -11,14 +10,11 @@ import {
   Sun,
   Moon,
   Sigma,
-  GitBranch,
   Copy,
   Check,
-  BookOpen,
-  Layers,
-  Info,
   ChevronDown,
   ChevronUp,
+  Zap,
 } from "lucide-react";
 
 import "katex/dist/katex.min.css";
@@ -155,11 +151,7 @@ const GLOSSARY = [
   { symbol: "\\mathcal{S}", def: "Feasible set (bankroll & liquidity constraints)" },
 ];
 
-const ERROR_TYPES = {
-  NO_KEYS: "Authentication credentials missing",
-  NetworkError: "API connection failed - check connectivity",
-  ValidationError: "Input data malformed or incomplete",
-};
+
 
 const APPENDIX_FORMULAS = [
   {
@@ -280,14 +272,15 @@ const SPORT_FORMULAS = {
   ]
 };
 
-const ACCENTS = {
-  cyan: { border: "border-cyan-500", text: "text-cyan-400", bg: "bg-cyan-950", pill: "bg-cyan-500/10 text-cyan-600" },
-  blue: { border: "border-blue-500", text: "text-blue-400", bg: "bg-blue-950", pill: "bg-blue-500/10 text-blue-600" },
-  purple: { border: "border-purple-500", text: "text-purple-400", bg: "bg-purple-950", pill: "bg-purple-500/10 text-purple-600" },
-  emerald: { border: "border-emerald-500", text: "text-emerald-400", bg: "bg-emerald-950", pill: "bg-emerald-500/10 text-emerald-600" },
-  orange: { border: "border-orange-500", text: "text-orange-400", bg: "bg-orange-950", pill: "bg-orange-500/10 text-orange-600" },
-  red: { border: "border-red-500", text: "text-red-400", bg: "bg-red-950", pill: "bg-red-500/10 text-red-600" },
-  teal: { border: "border-teal-500", text: "text-teal-400", bg: "bg-teal-950", pill: "bg-teal-500/10 text-teal-600" },
+
+
+const SPORT_META = {
+  soccer: { icon: "⚽", title: "Football (Soccer)", color: "blue" },
+  basketball: { icon: "🏀", title: "NBA Basketball", color: "orange" },
+  tennis: { icon: "🎾", title: "ATP/WTA Tennis", color: "purple" },
+  nfl: { icon: "🏈", title: "NFL Football", color: "emerald" },
+  hockey: { icon: "🏒", title: "NHL Hockey", color: "teal" },
+  baseball: { icon: "⚾", title: "MLB Baseball", color: "red" }
 };
 
 // Conditional classes for sports cards (runtime-safe, avoids non-existent theme-dark: Tailwind variant)
@@ -334,7 +327,7 @@ const KatexRenderer = memo(function KatexRenderer({ tex, displayMode = true, dar
       console.error("Katex render error:", err);
       setError(err.message);
     }
-  }, [tex, displayMode, darkMode]);
+  }, [tex, displayMode]);
 
   if (error) {
     return (
@@ -408,121 +401,7 @@ const LazyBlockMath = memo(function LazyBlockMath({ tex, darkMode }) {
 // -------------------------
 // UI COMPONENTS
 // -------------------------
-const FormulaBlock = memo(function FormulaBlock({ title, tex, desc, darkMode }) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const handleCopy = useCallback(async () => {
-    const ok = await copyToClipboard(tex);
-    if (!ok) return;
-
-    setCopied(true);
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => setCopied(false), 1400);
-  }, [tex]);
-
-  return (
-    <div className="mb-10 break-inside-avoid relative group">
-      <div className="flex items-center justify-between mb-2">
-        <h4
-          className={`text-xs font-black uppercase tracking-widest opacity-80 ${darkMode ? "text-cyan-400" : "text-blue-700"
-            }`}
-        >
-          {title}
-        </h4>
-
-        <button
-          onClick={handleCopy}
-          className={`p-1.5 rounded-md transition-all opacity-0 group-hover:opacity-100 ${darkMode
-            ? "hover:bg-slate-800 text-slate-400 hover:text-cyan-300"
-            : "hover:bg-slate-100 text-slate-500 hover:text-blue-600"
-            }`}
-          title="Copy LaTeX"
-          aria-label="Copy LaTeX"
-          type="button"
-        >
-          {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-        </button>
-      </div>
-
-      <div
-        className={`p-6 rounded-2xl border-2 overflow-x-auto overflow-y-hidden mb-4 transition-all ${darkMode
-          ? "bg-slate-900/60 border-slate-800 hover:border-cyan-500/30 text-slate-100"
-          : "bg-white border-slate-100 hover:border-blue-500/30 text-slate-900 shadow-sm"
-          }`}
-      >
-        <LazyBlockMath tex={tex} darkMode={darkMode} />
-      </div>
-
-      {desc && (
-        <div
-          className={`text-sm leading-relaxed border-l-4 pl-4 font-medium ${darkMode ? "text-slate-400 border-cyan-900/50" : "text-slate-600 border-blue-100"
-            }`}
-        >
-          <span
-            className={`block text-[10px] font-black uppercase tracking-tighter mb-2 ${darkMode ? "text-cyan-500/60" : "text-blue-500/60"
-              }`}
-          >
-            Stochastic Logic / Application
-          </span>
-          {desc}
-        </div>
-      )}
-    </div>
-  );
-});
-
-const SportCard = memo(function SportCard({ sport, icon, formulas, darkMode, accent = "cyan" }) {
-  const a = ACCENTS[accent] || ACCENTS.cyan;
-
-  return (
-    <div
-      className={`p-8 rounded-[2rem] border h-full transition-all group ${darkMode
-        ? "bg-slate-900/40 border-slate-800 hover:bg-slate-900/60"
-        : "bg-white border-slate-100 shadow-xl hover:shadow-2xl"
-        }`}
-    >
-      <div className="flex items-center gap-4 mb-8 border-b border-slate-800/20 pb-6">
-        <div className={`p-3 rounded-2xl ${darkMode ? "bg-slate-800" : "bg-slate-50"}`}>
-          <span className="text-4xl group-hover:scale-110 transition-transform inline-block">
-            {icon}
-          </span>
-        </div>
-        <div className="flex-1">
-          <h3 className={`text-2xl font-black tracking-tight ${darkMode ? "text-white" : "text-slate-900"}`}>
-            {sport}
-          </h3>
-          <div className="mt-2">
-            <span
-              className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${darkMode ? "bg-slate-800 text-cyan-300" : a.pill
-                }`}
-            >
-              Bayesian / Stochastic Model
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-10">
-        {formulas.map((f, i) => (
-          <FormulaBlock
-            key={`${sport}-${i}`}
-            title={f.title}
-            tex={f.tex}
-            desc={f.desc}
-            darkMode={darkMode}
-          />
-        ))}
-      </div>
-    </div>
-  );
-});
 
 // -------------------------
 // MAIN PAGE
@@ -565,12 +444,12 @@ const CopyButton = memo(function CopyButton({ text, label }) {
   );
 });
 
-const CanonicalFormula = ({ texKey, tex, title, explanation, usage, children, darkMode }) => {
+const CanonicalFormula = ({ texKey, tex, title, explanation, usage, children, darkMode, className = "" }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const formulaTex = tex || LATEX_STORE[texKey] || "";
 
   return (
-    <div className="rounded-xl border border-[var(--phd-line)] bg-[var(--phd-code-bg)] p-5 shadow-sm transition-all hover:shadow-md">
+    <div className={`col-12 rounded-xl border border-[var(--phd-line)] bg-[var(--phd-code-bg)] p-5 shadow-sm transition-all hover:shadow-md ${className}`}>
       <div className="flex justify-between items-start mb-3 gap-4">
         <div className="flex-1">
           <h3 className="text-xs font-black uppercase tracking-widest text-[var(--phd-accent)] m-0 mb-1">{title}</h3>
@@ -623,6 +502,34 @@ const CanonicalFormula = ({ texKey, tex, title, explanation, usage, children, da
     </div>
   );
 };
+
+// ✅ MOVED HERE: SportCard depends on CanonicalFormula, which must be defined first.
+const SportCard = memo(function SportCard({ sport, icon, title, color, formulas, darkMode }) {
+  const cls = getSportCardClasses(sport, darkMode);
+
+  return (
+    <div className={`card sport-card-${color} transition-colors duration-300 ${cls.card}`}>
+      <div className="sport-card-header">
+        <span className="sport-icon">{icon}</span>
+        <h3 className={`sport-title ${cls.title}`}>{title}</h3>
+      </div>
+      <div className="space-y-4">
+        {formulas.map((f, i) => (
+          <CanonicalFormula
+            key={`${sport}-${i}-${f.title}`}
+            title={f.title}
+            tex={f.tex}
+            explanation={f.explanation}
+            usage={f.usage}
+            darkMode={darkMode}
+          >
+            {f.desc}
+          </CanonicalFormula>
+        ))}
+      </div>
+    </div>
+  );
+});
 
 export default function HowItWorksPage({ onBack, darkMode, setDarkMode }) {
   const [activeTab, setActiveTab] = useState("workflow");
@@ -749,18 +656,32 @@ export default function HowItWorksPage({ onBack, darkMode, setDarkMode }) {
             Exit Lab
           </button>
 
-          <button
-            onClick={handleToggleDark}
-            disabled={!canToggle}
-            className={`p-4 rounded-2xl transition-all shadow-lg active:scale-95 ${safeDarkMode
-              ? "bg-slate-900 hover:bg-slate-800 text-yellow-400 border border-slate-800"
-              : "bg-white hover:bg-slate-50 text-blue-600 border-2 border-slate-100"
-              } ${!canToggle ? "opacity-50 cursor-not-allowed" : ""}`}
-            aria-label="Toggle dark mode"
-            type="button"
-          >
-            {safeDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleCopyProtocol}
+              className={`p-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center gap-2 font-bold ${safeDarkMode
+                ? "bg-slate-800 text-emerald-400 border border-slate-700 hover:bg-slate-700"
+                : "bg-white text-emerald-600 border border-slate-100 hover:bg-slate-50"
+                }`}
+              title="Copy Full Mathematical Protocol"
+            >
+              {protocolCopied ? <Check size={20} /> : <Copy size={20} />}
+              <span className="hidden md:inline text-sm">Save Protocol</span>
+            </button>
+
+            <button
+              onClick={handleToggleDark}
+              disabled={!canToggle}
+              className={`p-4 rounded-2xl transition-all shadow-lg active:scale-95 ${safeDarkMode
+                ? "bg-slate-900 hover:bg-slate-800 text-yellow-400 border border-slate-800"
+                : "bg-white hover:bg-slate-50 text-blue-600 border-2 border-slate-100"
+                } ${!canToggle ? "opacity-50 cursor-not-allowed" : ""}`}
+              aria-label="Toggle dark mode"
+              type="button"
+            >
+              {safeDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </div>
         </header>
 
         {/* Tabs */}
@@ -1169,57 +1090,19 @@ export default function HowItWorksPage({ onBack, darkMode, setDarkMode }) {
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                    {Object.entries(SPORT_FORMULAS).map(([sport, formulas], idx) => {
-                      const colors = {
-                        soccer: "blue",
-                        basketball: "orange",
-                        tennis: "purple",
-                        nfl: "emerald",
-                        hockey: "teal",
-                        baseball: "red"
-                      }[sport] || "cyan";
-
-                      const icons = {
-                        soccer: "⚽",
-                        basketball: "🏀",
-                        tennis: "🎾",
-                        nfl: "🏈",
-                        hockey: "🏒",
-                        baseball: "⚾"
-                      }[sport] || "📊";
-
-                      const displayTitles = {
-                        soccer: "Football (Soccer)",
-                        basketball: "NBA Basketball",
-                        tennis: "ATP/WTA Tennis",
-                        nfl: "NFL Football",
-                        hockey: "NHL Hockey",
-                        baseball: "MLB Baseball"
-                      }[sport] || sport.toUpperCase();
-
-                      const cls = getSportCardClasses(sport, safeDarkMode);
+                    {Object.entries(SPORT_FORMULAS).map(([sport, formulas]) => {
+                      const meta = SPORT_META[sport] || { icon: "📊", title: sport.toUpperCase(), color: "cyan" };
 
                       return (
-                        <div key={sport} className={`card sport-card-${colors} transition-colors duration-300 ${cls.card}`}>
-                          <div className="sport-card-header">
-                            <span className="sport-icon">{icons}</span>
-                            <h3 className={`sport-title ${cls.title}`}>{displayTitles}</h3>
-                          </div>
-                          <div className="space-y-4">
-                            {formulas.map((f, i) => (
-                              <CanonicalFormula
-                                key={i}
-                                title={f.title}
-                                tex={f.tex}
-                                explanation={f.explanation}
-                                usage={f.usage}
-                                darkMode={safeDarkMode}
-                              >
-                                {f.desc}
-                              </CanonicalFormula>
-                            ))}
-                          </div>
-                        </div>
+                        <SportCard
+                          key={sport}
+                          sport={sport}
+                          icon={meta.icon}
+                          title={meta.title}
+                          color={meta.color}
+                          formulas={formulas}
+                          darkMode={safeDarkMode}
+                        />
                       );
                     })}
                   </div>

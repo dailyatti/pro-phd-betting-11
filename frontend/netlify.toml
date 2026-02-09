@@ -7,7 +7,6 @@
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
 
 # API redirects MUST come before SPA fallback (Netlify uses first match)
 [[redirects]]

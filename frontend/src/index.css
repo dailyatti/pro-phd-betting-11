@@ -1,0 +1,542 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app: var(--bg-app);
+  --color-panel: var(--bg-panel);
+  --color-sidebar: var(--bg-sidebar);
+  --color-elevated: var(--bg-elevated);
+  --color-subtle: var(--bg-subtle);
+
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-muted: var(--text-muted);
+
+  --color-cyan: var(--accent-cyan);
+  --color-gold: var(--accent-gold);
+
+  --border-color-subtle: var(--border-subtle);
+  --border-color-strong: var(--border-strong);
+}
+
+/* ==========================================================================
+   PhD INTEL — Dark Mode "Neo Void" (OLED Black, Perplexity-style)
+   Single-block stylesheet (drop-in) for the betting dashboard
+   ========================================================================== */
+
+/* GLOBAL TOKENS (dark-focused, de a light módot nem bántja, ha van külön) */
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-elastic: cubic-bezier(0.5, 1.5, 0.5, 1);
+  --dur-fast: 140ms;
+  --dur-normal: 260ms;
+
+  --r-card-lg: 24px;
+  --r-card-md: 18px;
+  --r-pill: 999px;
+
+  --nav-height: 64px;
+  --content-width-max: 1200px;
+}
+
+/* ==========================================================================
+   DARK THEME — "Neo Void"
+   ========================================================================== */
+
+:root[data-theme="dark"],
+body.dark {
+  color-scheme: dark;
+
+  /* Backgrounds: ABSOLUTE BLACK */
+  --bg-app: #000000;
+  --bg-body: #000000;
+  --bg-panel: #000000;
+  --bg-elevated: #000000;
+  --bg-subtle: #000000;
+  --bg-input: #000000;
+
+  /* Component specific backgrounds (Dark) */
+  --bg-sidebar: #000000;
+  --bg-topbar: #000000;
+  --bg-dropzone: #000000;
+  --bg-money-input: #000000;
+  --bg-card: #000000;
+
+  /* Text: Highest Contrast */
+  --text-primary: #FFFFFF;
+  --text-secondary: #E4E4E7;
+  --text-tertiary: #A1A1AA;
+  --text-muted: #71717A;
+  --text-inverse: #000000;
+
+  /* Accents */
+  --accent-cyan: #22D3EE;
+  --accent-cyan-soft: rgba(34, 211, 238, 0.15);
+  --accent-cyan-strong: #06B6D4;
+
+  --accent-gold: #FCD34D;
+  --accent-gold-soft: rgba(251, 191, 36, 0.15);
+
+  /* Borders: Lighter/Sharper for Black Background ("Fordítva kell") */
+  --border-subtle: #27272A;
+  /* Visibly lighter than bg */
+  --border-strong: #3F3F46;
+  /* Strong structure */
+
+  /* Shadows */
+  --sh-elevated: none;
+  --sh-pop-cyan: 0 0 15px rgba(34, 211, 238, 0.1);
+  --sh-pop-gold: 0 0 15px rgba(251, 191, 36, 0.1);
+
+  /* Toggle */
+  --toggle-bg: #27272A;
+  --toggle-circle: #000000;
+  --toggle-icon: #A1A1AA;
+}
+
+/* ==========================================================================
+   LIGHT THEME — "Premium Uniform Cream"
+   ========================================================================== */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Background hierarchy: ULTIMATE CREAM (#FFFDF5) - The Final 2% Tweak */
+  --bg-app: #FFFDF5;
+  --bg-body: #FFFDF5;
+  --bg-panel: #FFFDF5;
+  --bg-elevated: #FFFDF5;
+  --bg-subtle: #FFFBEC;
+  /* Micro contrast */
+  --bg-input: #FFFFFF;
+
+  /* Component specific backgrounds (Light) */
+  --bg-sidebar: #FFFDF5;
+  --bg-topbar: rgba(255, 253, 245, 0.95);
+  --bg-dropzone: #FFFBF0;
+  --bg-money-input: #FFFFFF;
+  --bg-card: #FFFDF5;
+
+  /* Text */
+  --text-primary: #18181B;
+  --text-secondary: #3F3F46;
+  --text-tertiary: #71717A;
+  --text-muted: #A1A1AA;
+  --text-inverse: #FFFFFF;
+
+  /* Accents */
+  --accent-cyan: #0891B2;
+  --accent-cyan-soft: rgba(8, 145, 178, 0.08);
+  --accent-cyan-strong: #0E7490;
+
+  --accent-gold: #D97706;
+  --accent-gold-soft: rgba(217, 119, 6, 0.1);
+
+  /* Borders - Darker/Sharper as requested */
+  --border-subtle: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.20);
+
+  /* Shadows */
+  --sh-elevated: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --sh-pop-cyan: 0 10px 20px -5px rgba(8, 145, 178, 0.15);
+  --sh-pop-gold: 0 10px 20px -5px rgba(217, 119, 6, 0.15);
+
+  /* Toggle */
+  --toggle-bg: #F3F4F6;
+  --toggle-circle: #FFFFFF;
+  --toggle-icon: #D97706;
+}
+
+/* ==========================================================================
+   BASE LAYOUT
+   ========================================================================== */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background var(--dur-normal) var(--ease-smooth),
+    color var(--dur-normal) var(--ease-smooth);
+}
+
+/* teljes app keret */
+.app-root {
+  min-height: 100vh;
+  background-color: var(--bg-body);
+}
+
+/* központi dashboard shell */
+.app-shell {
+  max-width: var(--content-width-max);
+  margin: 0 auto;
+  padding: 16px 24px 32px;
+}
+
+/* bal oldali sidebar */
+.app-sidebar {
+  background-color: var(--bg-sidebar) !important;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border-subtle);
+}
+
+/* ==========================================================================
+   TOP BAR (toggle + balance + RUN SYSTEM)
+   ========================================================================== */
+
+.top-bar {
+  height: var(--nav-height);
+  border-radius: var(--r-pill);
+  background: var(--bg-topbar);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  gap: 16px;
+}
+
+/* RUN SYSTEM gomb */
+.btn-run-system {
+  border-radius: var(--r-pill);
+  padding: 10px 20px;
+  border: 1px solid transparent;
+  background: var(--accent-cyan);
+  color: #000000;
+  /* Always black text for contrast on bright cyan */
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  box-shadow: var(--sh-pop-cyan);
+  transition: all var(--dur-fast) var(--ease-smooth);
+}
+
+.btn-run-system:hover {
+  background: var(--accent-cyan-strong);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-run-system:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* ==========================================================================
+   THEME TOGGLE
+   ========================================================================== */
+
+.ui-toggle-switch {
+  position: relative;
+  width: 68px;
+  height: 36px;
+  background: var(--toggle-bg);
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  padding: 4px;
+  transition: all var(--dur-normal) var(--ease-smooth);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ui-toggle-switch:hover {
+  border-color: var(--accent-gold);
+}
+
+.ui-toggle-switch:active {
+  transform: scale(0.98);
+}
+
+.ui-toggle-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 28px;
+  height: 28px;
+  background: var(--toggle-circle);
+  border-radius: 999px;
+  transition: all var(--dur-normal) var(--ease-smooth);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-gold);
+  border: 1px solid var(--border-strong);
+}
+
+.ui-toggle-icon {
+  width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--toggle-icon);
+  z-index: 1;
+  opacity: 0.4;
+  transition: all var(--dur-normal) var(--ease-smooth);
+}
+
+/* checked = dark */
+.ui-toggle-switch[data-checked="true"] {
+  background: var(--toggle-bg);
+  border-color: var(--border-strong);
+}
+
+.ui-toggle-switch[data-checked="true"] .ui-toggle-handle {
+  transform: translateX(32px);
+  background: var(--toggle-circle);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-soft);
+}
+
+.ui-toggle-switch[data-checked="true"] .ui-toggle-icon.moon {
+  opacity: 1;
+  color: #FFFFFF;
+}
+
+.ui-toggle-switch[data-checked="false"] .ui-toggle-icon.sun {
+  opacity: 1;
+  color: var(--accent-gold);
+}
+
+/* ==========================================================================
+   DASHBOARD PANELS
+   ========================================================================== */
+
+.dashboard-panel {
+  border-radius: var(--r-card-lg);
+  background: var(--bg-card);
+  /* Now strictly black in dark mode */
+  border: 1px solid var(--border-subtle);
+  padding: 24px;
+  color: var(--text-primary);
+}
+
+.dashboard-panel h1,
+.dashboard-panel h2 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+
+.dashboard-panel p {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   DRAG-AND-DROP ZÓNA
+   ========================================================================== */
+
+.drop-zone {
+  border-radius: 28px;
+  border: 2px dashed var(--border-strong);
+  /* Thicker separation */
+  background: var(--bg-dropzone);
+  /* Solid Black */
+  /* No shadow on dropzone for clean look */
+  transition: all var(--dur-fast) var(--ease-smooth);
+}
+
+.drop-zone:hover {
+  border-color: var(--accent-cyan);
+  background: var(--bg-subtle);
+  /* Very slight tint on hover */
+  transform: translateY(-2px);
+}
+
+/* belső ikon kártya */
+.drop-zone-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 32px;
+  background: var(--bg-app);
+  /* Black */
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+}
+
+/* ==========================================================================
+   PÉNZ / STAKE INPUT
+   ========================================================================== */
+
+.money-input-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.money-input-prefix {
+  position: absolute;
+  inset-y: 0;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+/* fő pénz mező */
+.money-input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-money-input);
+  color: var(--text-primary);
+  padding: 11px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  transition: all 160ms var(--ease-smooth);
+}
+
+.money-input--lg {
+  font-size: 1.05rem;
+  padding: 13px 18px;
+}
+
+.money-input--with-prefix {
+  padding-left: 30px;
+}
+
+/* placeholder */
+.money-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* hover & focus Mode Aware */
+.money-input:hover {
+  border-color: var(--border-strong);
+}
+
+.money-input:focus-visible {
+  outline: none;
+  border-color: var(--accent-cyan-strong);
+  box-shadow: 0 0 0 3px var(--accent-cyan-soft);
+  transform: translateY(-1px);
+}
+
+/* readonly / disabled */
+.money-input[readonly],
+.money-input:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* ==========================================================================
+   GENERIC BUTTONS
+   ========================================================================== */
+
+.btn {
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  padding: 9px 16px;
+  font-size: 0.93rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-smooth);
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.btn--secondary {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+.btn--secondary:hover {
+  border-color: var(--border-strong);
+}
+
+/* ==========================================================================
+   SCROLLBAR (minimal, dark)
+   ========================================================================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(32, 35, 41, 0.32);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(34, 38, 38, 0.6);
+}
+
+/* ==========================================================================
+   TOP BAR INPUT PRO (User Request)
+   ========================================================================== */
+
+.top-bar-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 14px;
+  transition: all var(--dur-fast) var(--ease-elastic);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+/* "Kicsi effekt amikor irok" - Scale + Glow */
+.top-bar-input-wrapper:focus-within {
+  background: var(--bg-elevated);
+  border-color: var(--accent-cyan);
+  box-shadow: var(--sh-pop-cyan);
+  transform: scale(1.05);
+}
+
+.top-bar-input {
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 90px;
+  outline: none;
+  text-align: left;
+}
+
+.top-bar-input::placeholder {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}

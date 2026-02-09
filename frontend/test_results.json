@@ -1,0 +1,278 @@
+{
+  "timestamp": "2026-02-08T10:22:47.325Z",
+  "config": {
+    "bankroll": 10000,
+    "staking": {
+      "gamma": 0.5,
+      "friction": 0.02,
+      "alpha": 0.05
+    },
+    "useDixonColes": true,
+    "eloBlend": {
+      "enabled": true,
+      "weight": 0.3
+    }
+  },
+  "matchResults": [
+    {
+      "match": "Liverpool vs Manchester City",
+      "league": "Premier Liga",
+      "formula": "DIXON_COLES",
+      "stats": {
+        "dataSource": "Perplexity Research",
+        "homeXG": 1.85,
+        "awayXG": 1.7,
+        "useDixonColes": true,
+        "rho": -0.03,
+        "grid": {
+          "hMax": 8,
+          "aMax": 7
+        },
+        "probs": {
+          "homeWin": 0.4386768168724335,
+          "draw": 0.191396612270256,
+          "awayWin": 0.3699265708573105,
+          "over25": 0.6881389465695322,
+          "bttsYes": 0.6914385474475506
+        }
+      },
+      "positiveEVBets": [
+        {
+          "selection": "Over 2.5",
+          "odds": 1.73,
+          "trueProb": "68.8%",
+          "edge": "11.01%",
+          "ev": "19.05%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Manchester City",
+          "odds": 2.9,
+          "trueProb": "37.0%",
+          "edge": "2.51%",
+          "ev": "7.28%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Liverpool",
+          "odds": 2.38,
+          "trueProb": "43.9%",
+          "edge": "1.85%",
+          "ev": "4.41%",
+          "stake": "0.1%",
+          "level": "GOOD"
+        },
+        {
+          "selection": "BTTS Yes",
+          "odds": 1.46,
+          "trueProb": "69.1%",
+          "edge": "0.65%",
+          "ev": "0.95%",
+          "stake": "0.1%",
+          "level": "LEAN"
+        }
+      ]
+    },
+    {
+      "match": "Sevilla vs Girona",
+      "league": "La Liga",
+      "formula": "DIXON_COLES",
+      "stats": {
+        "dataSource": "Perplexity Research",
+        "homeXG": 1.55,
+        "awayXG": 1.25,
+        "useDixonColes": true,
+        "rho": -0.03,
+        "grid": {
+          "hMax": 7,
+          "aMax": 6
+        },
+        "probs": {
+          "homeWin": 0.46148639361310273,
+          "draw": 0.21303341565668582,
+          "awayWin": 0.3254801907302115,
+          "over25": 0.5302968658867161,
+          "bttsYes": 0.5654895213837545
+        }
+      },
+      "positiveEVBets": [
+        {
+          "selection": "Girona",
+          "odds": 3.75,
+          "trueProb": "32.5%",
+          "edge": "5.88%",
+          "ev": "22.06%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "BTTS Yes",
+          "odds": 1.78,
+          "trueProb": "56.5%",
+          "edge": "0.37%",
+          "ev": "0.66%",
+          "stake": "0.1%",
+          "level": "LEAN"
+        }
+      ]
+    },
+    {
+      "match": "Lecce vs Udinese",
+      "league": "Serie A",
+      "formula": "DIXON_COLES",
+      "stats": {
+        "dataSource": "Perplexity Research",
+        "homeXG": 1.2,
+        "awayXG": 1.35,
+        "useDixonColes": true,
+        "rho": -0.03,
+        "grid": {
+          "hMax": 6,
+          "aMax": 7
+        },
+        "probs": {
+          "homeWin": 0.3536418699840105,
+          "draw": 0.22453738603366283,
+          "awayWin": 0.4218207439823267,
+          "over25": 0.4687694787341374,
+          "bttsYes": 0.5213721174638699
+        }
+      },
+      "positiveEVBets": [
+        {
+          "selection": "BTTS Yes",
+          "odds": 2.19,
+          "trueProb": "52.1%",
+          "edge": "6.48%",
+          "ev": "14.18%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Lecce",
+          "odds": 3.15,
+          "trueProb": "35.4%",
+          "edge": "3.62%",
+          "ev": "11.40%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Udinese",
+          "odds": 2.63,
+          "trueProb": "42.2%",
+          "edge": "4.16%",
+          "ev": "10.94%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Under 2.5",
+          "odds": 2.06,
+          "trueProb": "53.1%",
+          "edge": "4.58%",
+          "ev": "9.43%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        }
+      ]
+    },
+    {
+      "match": "1. FC Koln vs RB Leipzig",
+      "league": "Bundesliga",
+      "formula": "DIXON_COLES",
+      "stats": {
+        "dataSource": "Perplexity Research",
+        "homeXG": 1.1,
+        "awayXG": 1.8,
+        "useDixonColes": true,
+        "rho": -0.03,
+        "grid": {
+          "hMax": 6,
+          "aMax": 8
+        },
+        "probs": {
+          "homeWin": 0.19972139628789295,
+          "draw": 0.19989809318759502,
+          "awayWin": 0.600380510524512,
+          "over25": 0.553921464744326,
+          "bttsYes": 0.5600690122253388
+        }
+      },
+      "positiveEVBets": [
+        {
+          "selection": "RB Leipzig",
+          "odds": 2.03,
+          "trueProb": "60.0%",
+          "edge": "10.78%",
+          "ev": "21.88%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "Under 2.5",
+          "odds": 2.69,
+          "trueProb": "44.6%",
+          "edge": "7.43%",
+          "ev": "20.00%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        },
+        {
+          "selection": "BTTS No",
+          "odds": 2.69,
+          "trueProb": "44.0%",
+          "edge": "6.82%",
+          "ev": "18.34%",
+          "stake": "0.1%",
+          "level": "DIAMOND"
+        }
+      ]
+    },
+    {
+      "match": "Puskas Akademia vs ZTE",
+      "league": "NB I",
+      "formula": "DIXON_COLES",
+      "stats": {
+        "dataSource": "Perplexity Research",
+        "homeXG": 1.65,
+        "awayXG": 1.15,
+        "useDixonColes": true,
+        "rho": -0.03,
+        "grid": {
+          "hMax": 7,
+          "aMax": 6
+        },
+        "probs": {
+          "homeWin": 0.5415835997823405,
+          "draw": 0.20903030865359382,
+          "awayWin": 0.24938609156406563,
+          "over25": 0.5303051377017877,
+          "bttsYes": 0.555495114636262
+        }
+      },
+      "positiveEVBets": [
+        {
+          "selection": "Puskas Akademia",
+          "odds": 1.9,
+          "trueProb": "54.2%",
+          "edge": "1.53%",
+          "ev": "2.90%",
+          "stake": "0.1%",
+          "level": "GOOD"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalMatches": 5,
+    "totalPositiveEVBets": 14,
+    "formulasUsed": [
+      "DIXON_COLES",
+      "POISSON",
+      "KELLY_CVAR_L1"
+    ]
+  }
+}

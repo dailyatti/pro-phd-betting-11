@@ -1,0 +1,44 @@
+/* ==========================================================================
+   App Reset / Base
+   ========================================================================== */
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* If you want a consistent base font smoothing */
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Keep neutral, Tailwind will handle most styling */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Optional: prevent horizontal scroll from glow/shadows */
+* {
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Legacy Vite template classes (kept harmless)
+   - You can delete these if you no longer use them.
+   ========================================================================== */
+
+.logo,
+.logo:hover,
+.logo.react:hover,
+.card,
+.read-the-docs {
+  all: unset;
+}
+
+/* If you still use .logo somewhere, uncomment this instead:
+.logo { height: 2.5rem; }
+*/

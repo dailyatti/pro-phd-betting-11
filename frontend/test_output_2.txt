@@ -1,0 +1,10 @@
+﻿--- STARTING PhD ENGINE TESTS (DEBUG METHOD) ---
+[PASS] FOCI -> FOOTBALL
+[PASS] Unknown -> FOOTBALL
+Running computeFootball...
+Processed: {"matchId":"test_1","recommendations":[{"market":"1X2","selection":"Home Win","odds":2,"probability":0.48275862068965525,"ev":-0.0344827586206895,"kellyStake":0,"suggestedStake":0,"confidence":"LOW","recommendation_level":"AVOID","reasoning":"Market implied 48.3%. Kelly suggests 0.0% stake.","math_proof":{"implied_prob":0.5,"own_prob":0.48275862068965525,"edge":-0.0344827586206895,"kelly":0}},{"market":"1X2","selection":"Away Win","odds":4,"probability":0.24137931034482762,"ev":-0.0344827586206895,"kellyStake":0,"suggestedStake":0,"confidence":"LOW","recommendation_level":"AVOID","reasoning":"Market implied 24.1%. Kelly suggests 0.0% stake.","math_proof":{"implied_prob":0.25,"own_prob":0.24137931034482762,"edge":-0.0344827586206895,"kelly":0}},{"market":"1X2","selection":"Draw","odds":3.5,"probability":0.27586206896551724,"ev":-0.034482758620689724,"kellyStake":0,"suggestedStake":0,"confidence":"LOW","recommendation_level":"AVOID","reasoning":"Market implied 27.6%. Kelly suggests 0.0% stake.","math_proof":{"implied_prob":0.2857142857142857,"own_prob":0.27586206896551724,"edge":-0.034482758620689724,"kelly":0}}],"explanations":["Bookmaker Margin detected: 3.57%"],"warnings":[],"computedStats":{"homeProb":0.48275862068965525,"drawProb":0.27586206896551724,"awayProb":0.24137931034482762,"marketMargin":0.03571428571428559}}
+[PASS] Calculated Home Probability > 0
+[PASS] Recommendations generated
+[PASS] Validation Check
+
+Tests Complete. Passed: 5, Failed: 1

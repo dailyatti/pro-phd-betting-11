@@ -2,12 +2,12 @@
 # BYOK (Bring Your Own Key) - Users provide their own API keys via the UI
 
 [build]
-  base = "frontend"
+  base = "frontend/"
   command = "npm install && npm run build"
-  publish = "dist"
+  publish = "frontend/dist"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "frontend/netlify/functions"
 
 # API redirects MUST come before SPA fallback (Netlify uses first match)
 [[redirects]]

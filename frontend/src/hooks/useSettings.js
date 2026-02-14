@@ -25,7 +25,6 @@ export const useSettings = () => {
                 openai: storedKeys.openai || "",
                 perplexity: storedKeys.perplexity || "",
                 gemini: storedKeys.gemini || "",
-                deepseek: storedKeys.deepseek || ""
             };
         } catch (e) {
             // BYOK: No default keys - users must provide their own
@@ -33,22 +32,30 @@ export const useSettings = () => {
                 openai: "",
                 perplexity: "",
                 gemini: "",
-                deepseek: ""
             };
         }
     });
 
-    // AI Model settings
-    const [modelSettings, setModelSettings] = useState({
-        openai: 'gpt-5.2',
-        perplexity: 'sonar-pro',
-        deepseek: 'deepseek-reasoner',
-        useDeepSeekReasoning: false,
-        // Provider enable/disable states
-        openaiEnabled: true,
-        perplexityEnabled: true,
-        geminiEnabled: true,
-        deepseekEnabled: true
+    // AI Model settings — load from localStorage if available
+    const [modelSettings, setModelSettings] = useState(() => {
+        const defaults = {
+            openai: 'gpt-5.2',
+            perplexity: 'sonar-pro',
+            // Provider enable/disable states
+            openaiEnabled: true,
+            perplexityEnabled: true,
+            geminiEnabled: true
+        };
+        try {
+            const raw = localStorage.getItem('phd_betting_models');
+            if (raw) {
+                const stored = JSON.parse(raw);
+                return { ...defaults, ...stored };
+            }
+        } catch {
+            // ignore
+        }
+        return defaults;
     });
 
     // Bankroll state

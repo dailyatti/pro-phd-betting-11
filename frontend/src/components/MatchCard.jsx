@@ -26,7 +26,6 @@ const MatchCard = ({
   onAddImageToGroup,
   onSetActiveUploadTarget,
 }) => {
-  console.log(`[MatchCard Render] Group ID: ${group?.id}`);
   const groupId = group?.id ?? "unknown-group";
   const images = safeArr(group?.images);
   const topImages = useMemo(() => images.slice(0, 4), [images]);
@@ -186,8 +185,8 @@ const MatchCard = ({
               value={group?.matchLabel ?? ""}
               onChange={(e) => isFn(onUpdateMatchLabel) && onUpdateMatchLabel(groupId, e.target.value)}
               className={clsx(
-                "w-full bg-transparent text-lg font-bold placeholder-slate-500 focus:outline-none border-b transition-colors min-w-0",
-                darkMode ? "text-white border-transparent focus:border-cyan-500/50" : "text-slate-800 border-transparent focus:border-amber-400/50"
+                "w-full bg-transparent text-lg font-black tracking-tight placeholder-tertiary focus:outline-none border-b transition-colors min-w-0 text-primary",
+                darkMode ? "border-transparent focus:border-cyan-500/50" : "border-transparent focus:border-amber-400/50"
               )}
               placeholder="Match Label..."
               aria-label="Match label"
@@ -199,10 +198,10 @@ const MatchCard = ({
                 value={group?.sport ?? ""}
                 onChange={(e) => isFn(onUpdateSport) && onUpdateSport(groupId, e.target.value)}
                 className={clsx(
-                  "text-xs px-2 py-1 rounded border font-mono uppercase tracking-wide outline-none w-28 text-center",
+                  "text-xs px-2 py-1 rounded-lg border font-mono uppercase tracking-wide outline-none w-28 text-center",
                   darkMode
-                    ? "bg-slate-900 border-slate-700 text-cyan-400 focus:border-cyan-500"
-                    : "bg-amber-50 border-amber-200 text-amber-700 focus:border-amber-400"
+                    ? "bg-black/30 border-subtle text-cyan-400 focus:border-cyan-500"
+                    : "bg-amber-50 border-subtle text-amber-700 focus:border-amber-400"
                 )}
                 placeholder="SPORT"
                 aria-label="Sport"
@@ -219,57 +218,69 @@ const MatchCard = ({
               {/* ODDS PREVIEW - Extended for Multi-Market */}
               {group?.preview_odds && (
                 <div className="flex flex-col gap-2 mt-2 w-full">
-                  {/* 1X2 Row - Uniform Dark Background */}
+                  {/* 1X2 Row */}
                   {(group.preview_odds.homeWin || group.preview_odds.home || group.preview_odds.homeML) && (
-                    <div className="flex items-center justify-between bg-[#0B0F15] rounded px-3 py-2 border border-white/5 w-full shadow-sm">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">1X2</span>
+                    <div className={clsx(
+                      "flex items-center justify-between rounded-lg px-3 py-2 border w-full shadow-sm",
+                      darkMode ? "bg-black/60 border-slate-700/50" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <span className={clsx("text-[10px] font-bold uppercase tracking-wider", darkMode ? "text-slate-400" : "text-slate-500")}>1X2</span>
                       <div className="flex gap-3 font-mono text-xs font-semibold">
-                        <span className="text-cyan-400">{group.preview_odds.homeWin || group.preview_odds.home || group.preview_odds.homeML}</span>
-                        <span className="text-emerald-500 font-bold">/</span>
-                        <span className="text-indigo-400">{group.preview_odds.draw || group.preview_odds.drawML || "-"}</span>
-                        <span className="text-emerald-500 font-bold">/</span>
-                        <span className="text-rose-400">{group.preview_odds.awayWin || group.preview_odds.away || group.preview_odds.awayML}</span>
+                        <span className={darkMode ? "text-cyan-400" : "text-cyan-700"}>{group.preview_odds.homeWin || group.preview_odds.home || group.preview_odds.homeML}</span>
+                        <span className={darkMode ? "text-emerald-500" : "text-slate-400"}>/</span>
+                        <span className={darkMode ? "text-indigo-400" : "text-indigo-600"}>{group.preview_odds.draw || group.preview_odds.drawML || "-"}</span>
+                        <span className={darkMode ? "text-emerald-500" : "text-slate-400"}>/</span>
+                        <span className={darkMode ? "text-rose-400" : "text-rose-600"}>{group.preview_odds.awayWin || group.preview_odds.away || group.preview_odds.awayML}</span>
                       </div>
                     </div>
                   )}
 
                   <div className="flex gap-2 w-full">
-                    {/* O/U Badge - Uniform Dark Background */}
+                    {/* O/U Badge */}
                     {(group.preview_odds.totalOver || group.preview_odds.over || group.preview_odds.total_over) && (
-                      <div className="flex flex-1 items-center justify-between bg-[#0B0F15] border border-white/5 rounded px-2.5 py-1.5 shadow-sm">
-                        <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tight opacity-90">
+                      <div className={clsx(
+                        "flex flex-1 items-center justify-between rounded-lg px-2.5 py-1.5 border shadow-sm",
+                        darkMode ? "bg-black/60 border-slate-700/50" : "bg-blue-50 border-blue-100"
+                      )}>
+                        <span className={clsx("text-[9px] font-bold uppercase tracking-tight", darkMode ? "text-blue-400" : "text-blue-600")}>
                           O/U {group.preview_odds.totalLine || group.preview_odds.line || '2.5'}
                         </span>
-                        <div className="flex gap-2 font-mono text-[11px] font-medium text-blue-200">
-                          <span>O:{group.preview_odds.totalOver || group.preview_odds.over}</span>
-                          <span className="text-emerald-500 font-bold">|</span>
-                          <span className="text-orange-200/80">U:{group.preview_odds.totalUnder || group.preview_odds.under || '-'}</span>
+                        <div className="flex gap-2 font-mono text-[11px] font-medium">
+                          <span className={darkMode ? "text-blue-200" : "text-blue-700"}>O:{group.preview_odds.totalOver || group.preview_odds.over}</span>
+                          <span className={darkMode ? "text-slate-600" : "text-slate-400"}>|</span>
+                          <span className={darkMode ? "text-orange-200/80" : "text-orange-600"}>U:{group.preview_odds.totalUnder || group.preview_odds.under || '-'}</span>
                         </div>
                       </div>
                     )}
 
-                    {/* BTTS Badge - Uniform Dark Background */}
+                    {/* BTTS Badge */}
                     {(group.preview_odds.bttsYes || group.preview_odds.btts_yes) && (
-                      <div className="flex flex-1 items-center justify-between bg-[#0B0F15] border border-white/5 rounded px-2.5 py-1.5 shadow-sm">
-                        <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tight opacity-90">BTTS</span>
-                        <div className="flex gap-2 font-mono text-[11px] font-medium text-emerald-200">
-                          <span>Y:{group.preview_odds.bttsYes || group.preview_odds.btts_yes}</span>
-                          <span className="text-emerald-500 font-bold">|</span>
-                          <span className="text-rose-200/80">N:{group.preview_odds.bttsNo || group.preview_odds.btts_no || '-'}</span>
+                      <div className={clsx(
+                        "flex flex-1 items-center justify-between rounded-lg px-2.5 py-1.5 border shadow-sm",
+                        darkMode ? "bg-black/60 border-slate-700/50" : "bg-emerald-50 border-emerald-100"
+                      )}>
+                        <span className={clsx("text-[9px] font-bold uppercase tracking-tight", darkMode ? "text-emerald-400" : "text-emerald-600")}>BTTS</span>
+                        <div className="flex gap-2 font-mono text-[11px] font-medium">
+                          <span className={darkMode ? "text-emerald-200" : "text-emerald-700"}>Y:{group.preview_odds.bttsYes || group.preview_odds.btts_yes}</span>
+                          <span className={darkMode ? "text-slate-600" : "text-slate-400"}>|</span>
+                          <span className={darkMode ? "text-rose-200/80" : "text-rose-600"}>N:{group.preview_odds.bttsNo || group.preview_odds.btts_no || '-'}</span>
                         </div>
                       </div>
                     )}
 
-                    {/* Spread/Handicap Badge (Basketball/Tennis/US Sports) */}
+                    {/* Spread/Handicap Badge */}
                     {(group.preview_odds.spreadLine || group.preview_odds.homeSpread || group.preview_odds.awaySpread) && (
-                      <div className="flex flex-1 items-center justify-between bg-[#0B0F15] border border-white/5 rounded px-2.5 py-1.5 shadow-sm">
-                        <span className="text-[9px] font-bold text-amber-400 uppercase tracking-tight opacity-90">
+                      <div className={clsx(
+                        "flex flex-1 items-center justify-between rounded-lg px-2.5 py-1.5 border shadow-sm",
+                        darkMode ? "bg-black/60 border-slate-700/50" : "bg-amber-50 border-amber-100"
+                      )}>
+                        <span className={clsx("text-[9px] font-bold uppercase tracking-tight", darkMode ? "text-amber-400" : "text-amber-600")}>
                           HDP {group.preview_odds.spreadLine || ''}
                         </span>
-                        <div className="flex gap-2 font-mono text-[11px] font-medium text-amber-200">
-                          <span>H:{group.preview_odds.homeSpread}</span>
-                          <span className="text-emerald-500 font-bold">|</span>
-                          <span className="text-amber-200/80">A:{group.preview_odds.awaySpread}</span>
+                        <div className="flex gap-2 font-mono text-[11px] font-medium">
+                          <span className={darkMode ? "text-amber-200" : "text-amber-700"}>H:{group.preview_odds.homeSpread}</span>
+                          <span className={darkMode ? "text-slate-600" : "text-slate-400"}>|</span>
+                          <span className={darkMode ? "text-amber-200/80" : "text-amber-600"}>A:{group.preview_odds.awaySpread}</span>
                         </div>
                       </div>
                     )}

@@ -1,237 +1,308 @@
 /**
- * DeepSeek-Powered Text Parser for Manual Match Input
- * 
- * Uses DeepSeek AI to parse ANY text format containing match data
+ * GPT-Powered Text Parser for Manual Match Input
+ *
+ * Uses OpenAI GPT to parse ANY text format containing match data
  * and converts it to the standard MatchData[] structure.
- * 
+ *
+ * Handles free-form text like:
+ *   "real vs barca over 1.5 corner 2.20"
+ *   "Liverpool - Man City 1X2: 2.10 3.40 3.50"
+ *   "PSG Monaco hazai 1.80 döntetlen 3.50 vendég 4.20"
+ *
  * @module agents/textParser
  */
 
 /**
- * Call DeepSeek API to parse unstructured text into match JSON.
- * 
+ * Call OpenAI GPT API to parse unstructured text into match JSON.
+ *
  * @param {string} text - Raw user-pasted text in any format
- * @param {string} apiKey - DeepSeek API key
- * @param {string} model - DeepSeek model to use (default: deepseek-v3.2)
+ * @param {string} apiKey - OpenAI API key
+ * @param {string} model - OpenAI model to use
  * @returns {Promise<Array>} - Array of parsed MatchData objects
  */
-export async function parseWithDeepSeek(text, apiKey, model = 'deepseek-v3.2') {
+export async function parseWithGPT(text, apiKey, model = 'gpt-4.1-mini') {
     if (!text || typeof text !== 'string' || !apiKey) {
-        console.warn('[TextParser] Missing text or API key for DeepSeek parsing');
+        console.warn('[TextParser] Missing text or API key for GPT parsing');
         return [];
     }
 
-    const systemPrompt = `You are a betting data extraction AI. Your task is to parse raw text containing sports match data and extract structured information.
+    const systemPrompt = `You are a UNIVERSAL sports betting data extraction AI. You can read and understand ANY language, ANY format, ANY writing style. Your ONLY job: find matches and odds in the user's text, no matter how messy, abbreviated, or informal it is.
 
-OUTPUT FORMAT (strict JSON array):
-[
-  {
-    "team1": "Home Team Name",
-    "team2": "Away Team Name", 
-    "competition": "League/Tournament Name",
-    "time": "HH:MM or TBD",
-    "sport": "soccer|basketball|tennis|hockey|american_football|other",
-    "homeOdds": 2.50,
-    "drawOdds": 3.40,
-    "awayOdds": 2.80,
-    "overOdds": 1.73,
-    "underOdds": 2.06,
-    "overUnderLine": 2.5,
-    "bttsYes": 1.46,
-    "bttsNo": 2.55
-  }
-]
+ZERO ASSUMPTIONS ABOUT FORMAT. The user may write:
+- Sloppy shorthand: "real barca o1.5 corner 2.20"
+- Full sentence: "I want to bet on Real Madrid vs Barcelona, the over 1.5 corners is at 2.20"
+- Mixed language: "Bayern München ellen Dortmund, hazai 1.80 dönt 3.50 vendég 4.20"
+- Just names and numbers: "liverpool city 2.10 3.40 3.50"
+- With separators: "psg - monaco 1.90/3.60/4.00"
+- Markdown: "### 1. **Arsenal vs Chelsea** (PL) Home 2.38"
+- Tabular: "Team1  Team2  1  X  2\\nBarca  Real  1.55  4.20  6.00"
+- Hungarian: "Fradi Újpest hazai 1.30 döntetlen 5.50 vendég 9.00 gólok over 2.5 1.85"
+- German: "Bayern gegen Dortmund Sieg 1.50 Unentschieden 4.00 Niederlage 6.00"
+- Spanish: "Madrid vs Barça victoria local 1.80 empate 3.50 victoria visitante 4.20"
+- Turkish: "Galatasaray Fenerbahçe ev sahibi 1.90 berabere 3.40 deplasman 3.80"
+- Russian, Chinese, Arabic, Portuguese, Italian, Polish, Czech, Romanian — ANY language
+- OCR garbage with typos: "Lverpool - Mancehster Cty 2.10 3.40 3.50"
+- Single bet only: "over 2.5 goals psg monaco 1.85"
+- Just odds: "1.55 4.20 6.00" after team names mentioned earlier
+- Comma decimals: "2,10 3,40 3,50" (European format)
+- American odds: "+150 -110"
+- Fractional odds: "5/2 7/4"
 
-RULES:
-1. Extract ALL matches found in the text
-2. Parse odds as decimal numbers (e.g., 2.38, not "2.38")
-3. Use null for missing/unknown odds
-4. Recognize odds in any language (Hungarian: Hazai=Home, Döntetlen=Draw, Vendég=Away, Mindkét csapat gól=BTTS)
-5. Default sport to "soccer" if unclear
-6. Output ONLY valid JSON array, no explanations`;
+UNIVERSAL LANGUAGE DICTIONARY (non-exhaustive — you know ALL languages):
+Home/Win/1: Hazai, Heim, Local, Casa, Ev sahibi, Domácí, Gazda, Dom, Hemmslag, Koti
+Draw/X: Döntetlen, Unentschieden, Empate, Berabere, Remíza, Egal, Oavgjort
+Away/2: Vendég, Gast, Visitante, Deplasman, Hosté, Oaspete, Borta
+Over: Több, Über, Más, Üst, Nad, Peste, Över
+Under: Kevesebb, Unter, Menos, Alt, Pod, Sub, Under
+BTTS: Mindkét csapat gól, MKCSG, Beide Teams treffen, Ambos marcan, GG/NG
+Goals: Gól, Gólszám, Tore, Goles, Goller, Góly
+Corners: Szöglet, Sarok, Ecken, Esquinas, Köşe, Rohy, Cornere
+Cards: Lap, Karte, Tarjeta, Kart
+Handicap: Hátrány, Handicap, Hándicap, AH
+Half Time: Félidő, Halbzeit, Primer tiempo, İlk yarı, HT
+Full Time: Végeredmény, Endergebnis, Resultado final, FT
 
-    const userPrompt = `Parse this text and extract ALL match data as JSON:
+TEAM NAME INTELLIGENCE — resolve abbreviations and nicknames:
+- "real" / "rm" / "madrid" → Real Madrid
+- "barca" / "fcb" / "barcelona" → FC Barcelona
+- "city" / "mancity" / "mcfc" → Manchester City
+- "utd" / "manutd" / "united" → Manchester United
+- "pool" / "lfc" / "liverpool" → Liverpool FC
+- "arsenal" / "ars" / "gunners" → Arsenal FC
+- "chelsea" / "cfc" / "blues" → Chelsea FC
+- "bayern" / "fcb" / "münchen" → Bayern München
+- "bvb" / "dortmund" → Borussia Dortmund
+- "psg" / "paris" → Paris Saint-Germain
+- "juve" / "juventus" → Juventus FC
+- "inter" / "internazionale" → Inter Milan
+- "milan" / "acm" / "rossoneri" → AC Milan
+- "fradi" / "ftc" / "ferencváros" → Ferencváros TC
+- "újpest" / "ujpest" / "ute" → Újpest FC
+- "lakers" / "lal" → LA Lakers
+- "celtics" / "bos" → Boston Celtics
+- ANY other abbreviation or nickname — use your world knowledge to resolve it
 
-${text}`;
+SMART INFERENCE:
+1. Two entity names near each other + numbers between 1.01-100 → that's a match with odds
+2. Three consecutive numbers (e.g. 2.10 3.40 3.50) near team names → 1X2 (Home/Draw/Away)
+3. Two consecutive numbers near team names → Moneyline (Home/Away, no draw)
+4. "over"/"o" + line number + odds number → Over market
+5. "under"/"u" + line number + odds number → Under market
+6. "corner"/"szöglet"/"ecken" near odds → Corner market (put in extraMarkets)
+7. "card"/"lap"/"karte" near odds → Card market (put in extraMarkets)
+8. "btts"/"gg"/"mindkét csapat" near odds → BTTS market
+9. Even if the text is a SINGLE LINE with minimal info, extract what you can
+10. If you see a number like 2.5, 1.5, 3.5 followed by an odds number → that's a line + odds
+11. Default sport = "soccer" unless basketball/tennis/hockey/NFL keywords are present
+12. Multiple matches separated by newlines, semicolons, ";" , numbers "1." "2.", or paragraphs
+
+OUTPUT — strict JSON only, no other text:
+{
+  "matches": [
+    {
+      "team1": "Full Home Team Name",
+      "team2": "Full Away Team Name",
+      "competition": "League/Tournament or null",
+      "time": "HH:MM or null",
+      "sport": "soccer|basketball|tennis|hockey|american_football|baseball|other",
+      "homeOdds": 2.50,
+      "drawOdds": 3.40,
+      "awayOdds": 2.80,
+      "overOdds": 1.73,
+      "underOdds": 2.06,
+      "overUnderLine": 2.5,
+      "bttsYes": 1.46,
+      "bttsNo": 2.55,
+      "extraMarkets": [
+        { "name": "Over 1.5 Corners", "odds": 2.20, "type": "over" }
+      ]
+    }
+  ]
+}
+
+ABSOLUTE RULES:
+- NEVER invent odds — if not in the text, use null
+- ALWAYS extract, even from 1 line with 1 match and 1 odds value
+- Parse decimal odds (2.38), comma decimals (2,38→2.38), fractional (5/2→3.50), american (+150→2.50, -110→1.91)
+- extraMarkets = any market not fitting the standard fields (corners, cards, halftime, player props, handicaps, specials)
+- Output ONLY raw JSON — no markdown, no \`\`\`, no explanation`;
+
+    const userPrompt = `Parse ALL matches and bets from this text:\n\n${text}`;
 
     try {
-        const response = await fetch('/api/deepseek/chat/completions', {
+        const payload = {
+            model: model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.05,
+            max_completion_tokens: 4000,
+            response_format: { type: 'json_object' },
+        };
+
+        const response = await fetch('/api/openai/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({
-                model: model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1,
-                max_tokens: 4000,
-                response_format: { type: 'json_object' }
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            console.error('[TextParser] DeepSeek API error:', response.status);
-            // Fallback to regex parser
+            const errText = await response.text().catch(() => '');
+            console.error('[TextParser] GPT API error:', response.status, errText);
             return parseManualTextInput(text);
         }
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content || '';
 
-        // Parse the JSON response
+        console.log('[TextParser] GPT raw response:', content.substring(0, 500));
+
         let parsed;
         try {
             parsed = JSON.parse(content);
         } catch {
-            // Try to extract JSON from text
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+                              content.match(/(\{[\s\S]*\})/) ||
+                              content.match(/(\[[\s\S]*\])/);
             if (jsonMatch) {
-                parsed = JSON.parse(jsonMatch[0]);
+                try {
+                    parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                } catch {
+                    console.warn('[TextParser] Could not parse extracted JSON, falling back to regex');
+                    return parseManualTextInput(text);
+                }
             } else {
-                console.warn('[TextParser] Could not parse DeepSeek response, falling back to regex');
+                console.warn('[TextParser] No JSON found in GPT response, falling back to regex');
                 return parseManualTextInput(text);
             }
         }
 
-        // Handle both array and object with array property
-        const matches = Array.isArray(parsed) ? parsed : (parsed.matches || []);
+        const matches = Array.isArray(parsed) ? parsed : (parsed.matches || parsed.data || []);
 
-        // Normalize to expected format
-        return matches.map((match, idx) => ({
-            id: `deepseek-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-            team1: match.team1 || 'Unknown',
-            team2: match.team2 || 'Unknown',
-            homeTeam: match.team1 || match.homeTeam || 'Unknown',
-            awayTeam: match.team2 || match.awayTeam || 'Unknown',
-            competition: match.competition || match.league || 'Unknown',
-            time: match.time || 'TBD',
-            sport: match.sport || 'soccer',
-            source: 'deepseek_parser',
-            homeOdds: parseFloat(match.homeOdds) || null,
-            drawOdds: parseFloat(match.drawOdds) || null,
-            awayOdds: parseFloat(match.awayOdds) || null,
-            overOdds: parseFloat(match.overOdds) || null,
-            underOdds: parseFloat(match.underOdds) || null,
-            overUnderLine: parseFloat(match.overUnderLine) || 2.5,
-            bttsYes: parseFloat(match.bttsYes) || null,
-            bttsNo: parseFloat(match.bttsNo) || null,
-            markets: {
-                moneyline: {
-                    home: parseFloat(match.homeOdds) || null,
-                    draw: parseFloat(match.drawOdds) || null,
-                    away: parseFloat(match.awayOdds) || null
+        if (matches.length === 0) {
+            console.warn('[TextParser] GPT returned 0 matches, trying regex fallback');
+            const regexResult = parseManualTextInput(text);
+            if (regexResult.length > 0) return regexResult;
+        }
+
+        return matches.map((match, idx) => {
+            const homeOdds = safeParseOdds(match.homeOdds);
+            const drawOdds = safeParseOdds(match.drawOdds);
+            const awayOdds = safeParseOdds(match.awayOdds);
+            const overOdds = safeParseOdds(match.overOdds);
+            const underOdds = safeParseOdds(match.underOdds);
+            const bttsYes = safeParseOdds(match.bttsYes);
+            const bttsNo = safeParseOdds(match.bttsNo);
+            const ouLine = safeParseOdds(match.overUnderLine) || 2.5;
+
+            return {
+                id: `gpt-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 5)}`,
+                team1: match.team1 || 'Unknown',
+                team2: match.team2 || 'Unknown',
+                homeTeam: match.team1 || match.homeTeam || 'Unknown',
+                awayTeam: match.team2 || match.awayTeam || 'Unknown',
+                competition: match.competition || match.league || null,
+                time: match.time || null,
+                sport: match.sport || 'soccer',
+                source: 'gpt_parser',
+                homeOdds,
+                drawOdds,
+                awayOdds,
+                overOdds,
+                underOdds,
+                overUnderLine: ouLine,
+                bttsYes,
+                bttsNo,
+                extraMarkets: match.extraMarkets || [],
+                markets: {
+                    moneyline: { home: homeOdds, draw: drawOdds, away: awayOdds },
+                    overUnder: { line: ouLine, over: overOdds, under: underOdds },
+                    btts: { yes: bttsYes, no: bttsNo }
                 },
-                overUnder: {
-                    line: parseFloat(match.overUnderLine) || 2.5,
-                    over: parseFloat(match.overOdds) || null,
-                    under: parseFloat(match.underOdds) || null
+                odds: {
+                    homeWin: homeOdds, draw: drawOdds, awayWin: awayOdds,
+                    over25: overOdds, under25: underOdds, bttsYes, bttsNo
                 },
-                btts: {
-                    yes: parseFloat(match.bttsYes) || null,
-                    no: parseFloat(match.bttsNo) || null
-                }
-            },
-            // ENGINE COMPATIBILITY: football.js expects odds.home, odds.draw, etc.
-            odds: {
-                home: parseFloat(match.homeOdds) || null,
-                draw: parseFloat(match.drawOdds) || null,
-                away: parseFloat(match.awayOdds) || null,
-                over25: parseFloat(match.overOdds) || null,
-                under25: parseFloat(match.underOdds) || null,
-                bttsYes: parseFloat(match.bttsYes) || null,
-                bttsNo: parseFloat(match.bttsNo) || null
-            },
-            isManualInput: true
-        }));
+                isManualInput: true
+            };
+        });
 
     } catch (err) {
-        console.error('[TextParser] DeepSeek parsing failed:', err);
-        // Fallback to regex parser
+        console.error('[TextParser] GPT parsing failed:', err);
         return parseManualTextInput(text);
     }
 }
 
+function safeParseOdds(val) {
+    if (val === null || val === undefined || val === '' || val === 'null') return null;
+    if (typeof val === 'number' && isFinite(val) && val >= 1.0) return val;
+    const num = parseFloat(String(val).replace(',', '.'));
+    return isFinite(num) && num >= 1.0 ? num : null;
+}
+
 // ============== REGEX FALLBACK PARSER ==============
 
-/**
- * Parse a single match block from the user's text format (regex fallback).
- */
 function parseMatchBlock(block) {
     try {
-        // Extract header: ### 1. **Liverpool - Manchester City** (Premier Liga, 17:30)
-        const headerMatch = block.match(/###\s*\d+\.\s*\*\*(.+?)\s*-\s*(.+?)\*\*\s*\(([^,]+),?\s*(\d{1,2}:\d{2})?\)/i);
-        if (!headerMatch) return null;
+        const headerMatch = block.match(/###\s*\d+\.\s*\*\*(.+?)\s*[-–]\s*(.+?)\*\*\s*\(([^,]+),?\s*(\d{1,2}:\d{2})?\)/i);
+        const simpleMatch = !headerMatch && block.match(/^([A-Za-zÀ-ÿ\s.]+?)\s*(?:vs\.?|[-–]|ellen)\s*([A-Za-zÀ-ÿ\s.]+?)(?:\s|,|$)/im);
 
-        const [, team1, team2, competition, time] = headerMatch;
+        if (!headerMatch && !simpleMatch) return null;
 
-        // Extract 1X2 odds
-        const moneylineMatch = block.match(/1X2.*?Hazai\s*\*\*([\d.,]+)\*\*.*?Döntetlen\s*\*\*([\d.,]+)\*\*.*?Vendég\s*\*\*([\d.,]+)\*\*/i)
-            || block.match(/1X2.*?Home\s*\*\*([\d.,]+)\*\*.*?Draw\s*\*\*([\d.,]+)\*\*.*?Away\s*\*\*([\d.,]+)\*\*/i);
+        let team1, team2, competition, time;
+        if (headerMatch) { [, team1, team2, competition, time] = headerMatch; }
+        else { team1 = simpleMatch[1]; team2 = simpleMatch[2]; competition = null; time = null; }
 
-        // Extract Over/Under 2.5 odds
-        const ouMatch = block.match(/Over\/Under\s*2\.5.*?Over[^*]*\*\*([\d.,]+)\*\*.*?Under[^*]*\*\*([\d.,]+)\*\*/i);
-
-        // Extract BTTS
-        const bttsMatch = block.match(/Mindkét csapat gól.*?Igen\s*\*\*([\d.,]+)\*\*.*?Nem\s*\*\*([\d.,]+)\*\*/i)
-            || block.match(/BTTS.*?Yes\s*\*\*([\d.,]+)\*\*.*?No\s*\*\*([\d.,]+)\*\*/i);
+        const moneylineMatch =
+            block.match(/1X2.*?Hazai\s*\*\*([\d.,]+)\*\*.*?Döntetlen\s*\*\*([\d.,]+)\*\*.*?Vendég\s*\*\*([\d.,]+)\*\*/i) ||
+            block.match(/1X2.*?Home\s*\*\*([\d.,]+)\*\*.*?Draw\s*\*\*([\d.,]+)\*\*.*?Away\s*\*\*([\d.,]+)\*\*/i) ||
+            block.match(/(?:hazai|home)[:\s]*([\d.,]+).*?(?:döntetlen|draw)[:\s]*([\d.,]+).*?(?:vendég|away)[:\s]*([\d.,]+)/i) ||
+            block.match(/(?:1x2|moneyline)[:\s]*([\d.,]+)\s*[/|,\s]\s*([\d.,]+)\s*[/|,\s]\s*([\d.,]+)/i);
+        const threeOddsMatch = !moneylineMatch && block.match(/([\d.,]+)\s+[\s/|,]\s*([\d.,]+)\s+[\s/|,]\s*([\d.,]+)/);
+        const ouMatch =
+            block.match(/Over\/Under\s*[\d.]*.*?Over[^*]*\*\*([\d.,]+)\*\*.*?Under[^*]*\*\*([\d.,]+)\*\*/i) ||
+            block.match(/o(?:ver)?\s*[\d.]*\s*(?:goals?)?\s*[:\s]*([\d.,]+).*?u(?:nder)?\s*[\d.]*\s*(?:goals?)?\s*[:\s]*([\d.,]+)/i);
+        const bttsMatch =
+            block.match(/Mindkét csapat gól.*?Igen\s*\*\*([\d.,]+)\*\*.*?Nem\s*\*\*([\d.,]+)\*\*/i) ||
+            block.match(/BTTS.*?Yes\s*\*\*([\d.,]+)\*\*.*?No\s*\*\*([\d.,]+)\*\*/i) ||
+            block.match(/btts[:\s]*([\d.,]+)\s*[/|,]\s*([\d.,]+)/i);
 
         const parseOdds = (str) => str ? parseFloat(String(str).replace(',', '.')) : null;
+        const mlMatch = moneylineMatch || threeOddsMatch;
 
         const matchData = {
             id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            team1: team1.trim(),
-            team2: team2.trim(),
-            homeTeam: team1.trim(),
-            awayTeam: team2.trim(),
-            competition: competition.trim(),
-            time: time || 'TBD',
-            sport: 'soccer',
-            source: 'manual_text_input',
-            homeOdds: moneylineMatch ? parseOdds(moneylineMatch[1]) : null,
-            drawOdds: moneylineMatch ? parseOdds(moneylineMatch[2]) : null,
-            awayOdds: moneylineMatch ? parseOdds(moneylineMatch[3]) : null,
+            team1: team1.trim(), team2: team2.trim(),
+            homeTeam: team1.trim(), awayTeam: team2.trim(),
+            competition: competition ? competition.trim() : null, time: time || null,
+            sport: 'soccer', source: 'manual_text_input',
+            homeOdds: mlMatch ? parseOdds(mlMatch[1]) : null,
+            drawOdds: mlMatch ? parseOdds(mlMatch[2]) : null,
+            awayOdds: mlMatch ? parseOdds(mlMatch[3]) : null,
             overOdds: ouMatch ? parseOdds(ouMatch[1]) : null,
             underOdds: ouMatch ? parseOdds(ouMatch[2]) : null,
             overUnderLine: 2.5,
             bttsYes: bttsMatch ? parseOdds(bttsMatch[1]) : null,
             bttsNo: bttsMatch ? parseOdds(bttsMatch[2]) : null,
-            markets: {},
-            isManualInput: true
+            markets: {}, isManualInput: true
         };
 
-        if (moneylineMatch) {
-            matchData.markets.moneyline = {
-                home: parseOdds(moneylineMatch[1]),
-                draw: parseOdds(moneylineMatch[2]),
-                away: parseOdds(moneylineMatch[3])
-            };
-        }
-        if (ouMatch) {
-            matchData.markets.overUnder = { line: 2.5, over: parseOdds(ouMatch[1]), under: parseOdds(ouMatch[2]) };
-        }
-        if (bttsMatch) {
-            matchData.markets.btts = { yes: parseOdds(bttsMatch[1]), no: parseOdds(bttsMatch[2]) };
-        }
+        if (mlMatch) { matchData.markets.moneyline = { home: parseOdds(mlMatch[1]), draw: parseOdds(mlMatch[2]), away: parseOdds(mlMatch[3]) }; }
+        if (ouMatch) { matchData.markets.overUnder = { line: 2.5, over: parseOdds(ouMatch[1]), under: parseOdds(ouMatch[2]) }; }
+        if (bttsMatch) { matchData.markets.btts = { yes: parseOdds(bttsMatch[1]), no: parseOdds(bttsMatch[2]) }; }
 
-        // ENGINE COMPATIBILITY: football.js expects odds.home, odds.draw, etc.
         matchData.odds = {
-            home: matchData.homeOdds,
-            draw: matchData.drawOdds,
-            away: matchData.awayOdds,
-            over25: matchData.overOdds,
-            under25: matchData.underOdds,
-            bttsYes: matchData.bttsYes,
-            bttsNo: matchData.bttsNo
+            homeWin: matchData.homeOdds, draw: matchData.drawOdds, awayWin: matchData.awayOdds,
+            over25: matchData.overOdds, under25: matchData.underOdds,
+            bttsYes: matchData.bttsYes, bttsNo: matchData.bttsNo
         };
 
-        if (Object.keys(matchData.markets).length === 0) {
-            console.warn(`[TextParser] No markets found for ${team1} vs ${team2}`);
-            return null;
-        }
+        const hasAnyOdds = matchData.homeOdds || matchData.overOdds || matchData.bttsYes;
+        if (!hasAnyOdds && !team1 && !team2) return null;
 
         return matchData;
     } catch (err) {
@@ -240,43 +311,27 @@ function parseMatchBlock(block) {
     }
 }
 
-/**
- * Parse full text input using regex (fallback when DeepSeek unavailable).
- */
 export function parseManualTextInput(text) {
-    if (!text || typeof text !== 'string') {
-        return [];
-    }
-
-    const blocks = text.split(/(?=###\s*\d+\.)/);
+    if (!text || typeof text !== 'string') return [];
+    const blocks = text.includes('###')
+        ? text.split(/(?=###\s*\d+\.)/)
+        : text.split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
     const matches = [];
-
     for (const block of blocks) {
         if (!block.trim()) continue;
         const parsed = parseMatchBlock(block);
-        if (parsed) {
-            matches.push(parsed);
-        }
+        if (parsed) matches.push(parsed);
     }
-
     console.log(`[TextParser] Regex parsed ${matches.length} matches from manual input`);
     return matches;
 }
 
-/**
- * Normalize parsed matches for pipeline (compatibility layer).
- */
 export function normalizeForPipeline(parsedMatches) {
     return parsedMatches.map(match => ({
-        id: match.id,
-        team1: match.team1,
-        team2: match.team2,
-        homeTeam: match.team1,
-        awayTeam: match.team2,
-        competition: match.competition,
-        time: match.time,
-        sport: match.sport,
-        source: match.source,
+        id: match.id, team1: match.team1, team2: match.team2,
+        homeTeam: match.team1, awayTeam: match.team2,
+        competition: match.competition, time: match.time,
+        sport: match.sport, source: match.source,
         homeOdds: match.homeOdds || match.markets?.moneyline?.home || null,
         drawOdds: match.drawOdds || match.markets?.moneyline?.draw || null,
         awayOdds: match.awayOdds || match.markets?.moneyline?.away || null,
@@ -285,23 +340,16 @@ export function normalizeForPipeline(parsedMatches) {
         overUnderLine: match.overUnderLine || match.markets?.overUnder?.line || 2.5,
         bttsYes: match.bttsYes || match.markets?.btts?.yes || null,
         bttsNo: match.bttsNo || match.markets?.btts?.no || null,
+        extraMarkets: match.extraMarkets || [],
         markets: match.markets,
-        // ENGINE COMPATIBILITY: football.js expects odds.home, odds.draw, etc.
         odds: match.odds || {
-            home: match.homeOdds || match.markets?.moneyline?.home || null,
-            draw: match.drawOdds || match.markets?.moneyline?.draw || null,
-            away: match.awayOdds || match.markets?.moneyline?.away || null,
-            over25: match.overOdds || match.markets?.overUnder?.over || null,
-            under25: match.underOdds || match.markets?.overUnder?.under || null,
-            bttsYes: match.bttsYes || match.markets?.btts?.yes || null,
-            bttsNo: match.bttsNo || match.markets?.btts?.no || null
+            homeWin: match.homeOdds || null, draw: match.drawOdds || null,
+            awayWin: match.awayOdds || null, over25: match.overOdds || null,
+            under25: match.underOdds || null, bttsYes: match.bttsYes || null,
+            bttsNo: match.bttsNo || null
         },
         isManualInput: true
     }));
 }
 
-export default {
-    parseWithDeepSeek,
-    parseManualTextInput,
-    normalizeForPipeline
-};
+export default { parseWithGPT, parseManualTextInput, normalizeForPipeline };

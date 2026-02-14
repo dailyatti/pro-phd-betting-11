@@ -19,15 +19,13 @@
 import axios from "axios";
 import { retryAsync, safeStringify, tryParseJson } from "./common/helpers.js";
 import { selectFormulas } from "../engine/phd/formulaSelector.js";
-import { getFormula } from "../engine/phd/registry.js"; // Dynamic Dispatcher
+import { getFormula } from "../engine/phd/registry.js";
 import { normalizeSport } from "../engine/phd/utils/normalizeSport.js";
 
-// Multi-module cleanup (Engineering Audit Phase 1)
 import { PROMPT_VALIDATE_INTEL, PROMPT_PLANNER, PROMPT_VERIFY_ENGINE, PROMPT_FINAL_SYNTHESIS } from "./prompts/orchestratorPrompts.js";
 import { getMandatoryMarkets } from "./config/sportConfigs.js";
 import { extractOddsFromResearch } from "./common/oddsParser.js";
 import { hasPrimaryOdds } from "./vision/utils/matchValidator.js";
-import { createAPIManager, TaskType } from "./common/apiManager.js";
 
 // ============================================================
 // UTILS: stable id + safe token replacement
@@ -52,7 +50,6 @@ function requireKey(name, key) {
     if (!key || String(key).trim().length < 10) throw new Error(`${name} API key missing/invalid.`);
 }
 
-// PhD-Level Key Check (returns boolean, doesn't throw)
 function hasValidKey(key) {
     return key && String(key).trim().length >= 10;
 }
@@ -71,7 +68,6 @@ function safeJsonDataBlock(value, maxLen = 12000) {
 }
 
 function hasAnyOdds(obj, sport = "FOOTBALL") {
-    // Delegates to shared validator for consistency
     return hasPrimaryOdds(obj, sport);
 }
 
@@ -91,13 +87,11 @@ export const runPerplexityDirectedLoop = async ({
     userModelItems,
     openaiParams,
     perplexityParams,
-    deepseekParams, // NEW: DeepSeek Params
     manualIntel,
     bankroll,
     signal,
     onUpdate,
 }) => {
-    // Preserve parent group and sport so each match keeps correct sport (no cross-sport mix)
     const parentGroup = visionData?.__group || {};
     const rawParentSport = visionData?.sport || parentGroup?.sport;
     const parentSport = normalizeSport(rawParentSport);
@@ -141,7 +135,6 @@ export const runPerplexityDirectedLoop = async ({
                 userModelItems,
                 openaiParams,
                 perplexityParams,
-                deepseekParams, // Pass down
                 manualIntel: idx === 0 ? manualIntel : null,
                 bankroll,
                 signal,
@@ -200,47 +193,19 @@ async function processSingleMatch({
     matchData,
     openaiParams,
     perplexityParams,
-    deepseekParams,  // CRITICAL: Was missing, causing ReferenceError
     manualIntel,
     bankroll,
     signal,
     onUpdate,
 }) {
-    const { apiKey: openAIKey, orchestratorModel, finalModel } = openaiParams || {};
-    const { apiKey: pplxKey, model: pplxModel } = perplexityParams || {};
-    const { apiKey: dsKey, model: dsModel, enabled: dsEnabled } = deepseekParams || {};
+    const { apiKey: openAIKey, orchestratorModel, model: openaiModel } = openaiParams || {};
 
-    // PhD-Level: Initialize API Manager for capability-based model selection
-    const apiManager = createAPIManager(openaiParams, perplexityParams, deepseekParams, null);
-    apiManager.logStatus();
-
-    // STRICT VALIDATION: Must have Reasoning (GPT/DeepSeek) AND/OR Research (Perplexity)
-    // The user explicitly requested: "vagy a perplexity vagy a gpt be kell legyen kapcsolva máskép ne is induljon el a keresés"
-    if (!apiManager.canDoReasoning() && !hasValidKey(pplxKey)) {
-        throw new Error("SYSTEM HALTED: No active AI Brain found. Enable Perplexity, OpenAI, or DeepSeek in Settings.");
+    // Validation: Must have OpenAI for reasoning
+    if (!hasValidKey(openAIKey)) {
+        throw new Error("SYSTEM HALTED: OpenAI API key is required. Please add it in Settings.");
     }
 
-    // Validate we have at least reasoning capability for the Planner/Synthesis
-    if (!apiManager.canDoReasoning()) {
-        // If we only have Perplexity, we technically can't "Plan" or "Synthesize" well without a reasoning model.
-        // But if the user wants *either*, we might need a fallback? 
-        // Actually, without a reasoning model (LLM), we cannot run the Planner/Synthesis prompts at all.
-        // So we MUST have an LLM. 
-        throw new Error("SYSTEM HALTED: Reasoning Model (OpenAI or DeepSeek) is required to process data.");
-    }
-
-    // PhD-Level: Dynamic model selector for reasoning tasks
-    const callReasoningModel = async (params) => {
-        const best = apiManager.getBestForReasoning();
-        if (!best) {
-            throw new Error("No reasoning model available");
-        }
-
-        if (best.provider === 'deepseek') {
-            return callDeepSeek({ ...params, apiKey: best.apiKey, model: best.model });
-        }
-        return callOpenAI({ ...params, apiKey: best.apiKey, model: best.model });
-    };
+    const resolvedModel = orchestratorModel || openaiModel || 'gpt-4.1';
 
     const labeled = ensureMatchIdentity(matchData || {});
     labeled.sport = normalizeSport(labeled.sport || "FOOTBALL");
@@ -265,7 +230,9 @@ async function processSingleMatch({
             const safeIntel = safeJsonDataBlock(manualIntel, 12000);
             const valPrompt = PROMPT_VALIDATE_INTEL.replace("{INPUT_TEXT}", safeIntel);
 
-            const valRes = await callReasoningModel({
+            const valRes = await callOpenAI({
+                apiKey: openAIKey,
+                model: resolvedModel,
                 system: "You are a strict JSON-only content quality filter.",
                 user: valPrompt,
                 jsonMode: true,
@@ -302,31 +269,27 @@ async function processSingleMatch({
     }
 
     // 0.8) Vision Rescue (If images available)
-    if (isOddsMissing && matchData?.__group?._source_images) {
+    if (isOddsMissing && matchData?.__group?._source_images?.length > 0) {
         try {
             const { runVisionRescue } = await import("./vision/visionScraper.js");
             const rescueResult = await runVisionRescue(
-                { key: openAIKey, model: orchestratorModel }, // Use generic or vision model?
+                { key: openAIKey, model: orchestratorModel },
                 matchData.__group._source_images,
                 labeled.team_1,
                 labeled.team_2,
-                ["homeWin", "draw", "awayWin"], // Primary targets
+                ["homeWin", "draw", "awayWin"],
                 signal
             );
 
             if (rescueResult && rescueResult.found && rescueResult.odds) {
-                // Merge found odds
                 labeled.odds = { ...labeled.odds, ...rescueResult.odds };
 
-                // Re-check validity
                 if (hasAnyOdds(labeled.odds, labeled.sport)) {
                     evidenceLog.push({
                         round: "VISION_RESCUE",
                         query: "DYSLEXIC_ASSISTANT_RESCAN",
                         answer: `[SUCCESS] Vision Rescue found odds directly in image: ${JSON.stringify(rescueResult.odds)}`
                     });
-                    // Mark as NOT missing anymore, so we skip Perplexity
-                    // BUT: we set isOddsMissing = false? No, const. But we can skip the next block.
                 }
             } else {
                 evidenceLog.push({
@@ -349,7 +312,7 @@ async function processSingleMatch({
         const team2 = labeled.team_2 || labeled.awayTeam || "Away";
         const oddsQuery = `current decimal betting odds 1X2 for ${team1} vs ${team2} (home draw away)`;
         try {
-            const oddsAnswer = await performResearch({ perplexityParams, openaiParams, deepseekParams, query: oddsQuery, signal });
+            const oddsAnswer = await performResearch({ perplexityParams, openaiParams, query: oddsQuery, matchContext: labeled, signal });
             evidenceLog.push({ round: "ODDS_SEARCH", query: oddsQuery, answer: oddsAnswer });
         } catch (err) {
             console.warn("[Orchestrator] Forced odds search failed:", err?.message);
@@ -359,6 +322,8 @@ async function processSingleMatch({
     // 1) Directed loop (max 2 rounds)
     let rounds = 0;
     const MAX_ROUNDS = 2;
+
+    console.log(`[Orchestrator] Starting directed research loop for ${labeled.matchLabel} (max ${MAX_ROUNDS} rounds)`);
 
     while (rounds < MAX_ROUNDS) {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -370,8 +335,10 @@ async function processSingleMatch({
             "{PREVIOUS_FINDINGS}": findingsStr,
         });
 
-        // USE DEEPSEEK IF ENABLED (Reasoning Heavy)
-        const planRes = await callReasoningModel({
+        console.log(`[Orchestrator] Round ${rounds + 1}/${MAX_ROUNDS}: Calling Planner (GPT)...`);
+        const planRes = await callOpenAI({
+            apiKey: openAIKey,
+            model: resolvedModel,
             system: "You are a precise betting strategist. Output ONLY JSON.",
             user: planPrompt,
             jsonMode: true,
@@ -380,7 +347,21 @@ async function processSingleMatch({
         });
 
         const plan = tryParseJson(planRes) || {};
-        const queries = Array.isArray(plan.queries) ? plan.queries : [];
+        let queries = Array.isArray(plan.queries) ? plan.queries : [];
+
+        // FAILSAFE: If Planner returned no queries, generate mandatory research queries on FIRST round
+        if (queries.length === 0 && rounds === 0) {
+            const team1 = labeled.team_1 || labeled.homeTeam || "Home";
+            const team2 = labeled.team_2 || labeled.awayTeam || "Away";
+            const sport = labeled.sport || "FOOTBALL";
+            const tournament = labeled.tournament || "";
+            console.warn(`[Orchestrator] Planner returned 0 queries — generating failsafe queries for ${team1} vs ${team2}`);
+            queries = [
+                `${team1} vs ${team2} ${tournament} latest team news injuries confirmed lineups ${sport}`,
+                `${team1} vs ${team2} current betting odds 1X2 over under line movement sharp money`,
+                `${team1} vs ${team2} recent form last 5 matches head to head stats`,
+            ];
+        }
 
         if (queries.length === 0) break;
 
@@ -389,9 +370,11 @@ async function processSingleMatch({
             .filter(Boolean)
             .slice(0, 5);
 
+        console.log(`[Orchestrator] Round ${rounds + 1}: Planner generated ${SAFE_QUERIES.length} queries:`, SAFE_QUERIES.map(q => q.slice(0, 60)));
+
         try {
             const researchResults = await Promise.all(
-                SAFE_QUERIES.map((q) => performResearch({ perplexityParams, openaiParams, deepseekParams, query: q, signal }))
+                SAFE_QUERIES.map((q) => performResearch({ perplexityParams, openaiParams, query: q, matchContext: labeled, signal }))
             );
 
             SAFE_QUERIES.forEach((q, i) => {
@@ -412,7 +395,6 @@ async function processSingleMatch({
 
     // 1.9) SYNTHESIS: Inject found odds BEFORE Formula Selection
     if (isOddsMissing || Object.keys(labeled.odds || {}).length === 0) {
-        // Fix: Pass team names to help parser find "Real Sociedad: 2.50"
         const recovered = extractOddsFromResearch(evidenceLog, labeled.team_1, labeled.team_2);
         if (recovered) {
             console.log("[Orchestrator] Paradox Fix: Injecting recovered odds:", recovered);
@@ -426,14 +408,16 @@ async function processSingleMatch({
     }
 
     // 2) Formula Selection (Architect Agent)
+    console.log(`[Orchestrator] Research complete (${rounds} rounds, ${evidenceLog.length} evidence items). Starting Formula Selection...`);
     let formulaSelection;
     try {
         formulaSelection = await selectFormulas({
             matchContext: labeled,
             researchData: evidenceLog,
-            // USE DEEPSEEK IF ENABLED
             callGPT: async ({ system, user, jsonMode }) =>
-                callReasoningModel({
+                callOpenAI({
+                    apiKey: openAIKey,
+                    model: resolvedModel,
                     system,
                     user,
                     jsonMode,
@@ -467,7 +451,6 @@ async function processSingleMatch({
             : [];
 
         for (const sf of selectedList) {
-            // NEW: Use dynamic getFormula to support IDs like "TENNIS_HDD"
             const formula = getFormula(sf.formulaId);
 
             if (!formula || !formula.execute) {
@@ -477,23 +460,18 @@ async function processSingleMatch({
 
             const inputData = {
                 ...labeled,
-                // The Architect Agent (formulaSelector) maps params into 'parameters'
-                // The engine expects 'extractedParameters' or 'researchData'
                 extractedParameters: sf.parameters || {},
                 parameterPlan: sf.reasoning,
                 researchData: evidenceLog,
             };
 
-            // Basic team requirement
             if (!inputData.team_1 && !inputData.homeTeam) continue;
 
-            // Execute Formula (pass bankroll)
             const res = formula.execute(inputData, { bankroll: clampBankroll(bankroll, 300) });
 
             if (res) engineResults.push(res);
         }
 
-        // Use first result as primary, but keep others in multiFormulaResults
         const engineResult = engineResults[0] || { recommendations: [] };
 
         engineOutputWithFormulas = {
@@ -520,8 +498,9 @@ async function processSingleMatch({
     let verificationNote = "";
 
     try {
-        // USE DEEPSEEK IF ENABLED (Auditor is heavily reasoning based)
-        const verifyRes = await callReasoningModel({
+        const verifyRes = await callOpenAI({
+            apiKey: openAIKey,
+            model: resolvedModel,
             system: "Strict mathematical auditor. Output ONLY JSON.",
             user: replaceAllTokens(PROMPT_VERIFY_ENGINE, {
                 "{MATCH_CONTEXT}": contextStr,
@@ -540,7 +519,10 @@ async function processSingleMatch({
     }
 
     // 5) Final Synthesis
-    const finalRes = await callReasoningModel({
+    console.log(`[Orchestrator] Starting Final Synthesis for ${labeled.matchLabel}...`);
+    const finalRes = await callOpenAI({
+        apiKey: openAIKey,
+        model: resolvedModel,
         system: "PhD-level betting analyst. Output ONLY JSON.",
         user: replaceAllTokens(PROMPT_FINAL_SYNTHESIS, {
             "{MATCH_CONTEXT}": contextStr,
@@ -559,15 +541,11 @@ async function processSingleMatch({
     const finalParsed = tryParseJson(finalRes) || {};
 
     // 6) Post-Process Recommendations
-    // CRITICAL FIX: Use ENGINE recommendations as authoritative source, NOT GPT output
-    // The engine (football.js etc.) already computed correct EV/Edge/Odds.
-    // GPT synthesis often loses or corrupts this data.
     const engineRecs = Array.isArray(engineOutputWithFormulas?.recommendations)
         ? engineOutputWithFormulas.recommendations
         : [];
 
     if (engineRecs.length > 0) {
-        // Engine has valid recommendations - use them directly
         finalParsed.recommendations = engineRecs.map(rec => ({
             ...rec,
             matchLabel: labeled.matchLabel,
@@ -590,7 +568,6 @@ async function processSingleMatch({
         // --- RESCUE: Inject Odds from Context if missing in GPT output ---
         let book = Number(row.odds);
         if ((!Number.isFinite(book) || book <= 1.0001) && labeled.odds) {
-            // Try to fuzzy match selection to odds keys (e.g. "Home" -> homeWin)
             const selLower = String(row.selection || '').toLowerCase();
             const mktLower = String(row.market || '').toLowerCase();
 
@@ -612,7 +589,6 @@ async function processSingleMatch({
 
         const oddsOk = Number.isFinite(book) && book > 1.0001;
 
-        // 1. Odds Missing -> INFO
         if (!oddsOk) {
             return {
                 ...row,
@@ -625,15 +601,11 @@ async function processSingleMatch({
             };
         }
 
-        // 2. EV Check & Paradox Fix
-        // Recalculate Edge if possible to ensure consistency
         let edge = Number(row.math_proof?.edge);
         let ownProb = Number(row.math_proof?.own_prob);
 
-        // If we have stats from the engine, try to find the TRUE probability for this selection
         if (engineOutputWithFormulas?.computedStats?.probs) {
             const probs = engineOutputWithFormulas.computedStats.probs;
-            /* Simple mapping logic */
             const sel = String(row.selection || '').toLowerCase();
             if (sel.includes(String(labeled.team_1 || 'pxz').toLowerCase())) ownProb = probs.homeWin;
             else if (sel.includes(String(labeled.team_2 || 'pxz').toLowerCase())) ownProb = probs.awayWin;
@@ -644,14 +616,13 @@ async function processSingleMatch({
             else if (sel.includes('no')) ownProb = 1 - probs.bttsYes;
 
             if (Number.isFinite(ownProb)) {
-                // Update proof with authoritative engine data
                 edge = (ownProb * book) - 1;
                 row.math_proof = {
                     ...row.math_proof,
                     own_prob: ownProb,
                     implied_prob: 1 / book,
                     edge: edge,
-                    kelly: (edge / ((book - 1) || 1)) * 0.25 // rough quarter kelly estimation if missing
+                    kelly: (edge / ((book - 1) || 1)) * 0.25
                 };
             }
         }
@@ -659,10 +630,7 @@ async function processSingleMatch({
         if (!Number.isFinite(edge)) edge = 0;
 
         if (edge <= 0) {
-            // Negative/Neutral EV
             const currentLevel = String(row.recommendation_level || "").toUpperCase();
-
-            // "Avoid Paradox": If AI says GOOD but Math says Edge<=0, we warn but don't force AVOID if strong conviction
             if (["DIAMOND", "STRONG", "GOOD"].includes(currentLevel)) {
                 row.reasoning = `[MATH WARNING] Negative EV (${(edge * 100).toFixed(1)}%) vs AI Confidence. ${row.reasoning || ""}`;
                 row.recommendation_level = "LEAN";
@@ -670,22 +638,17 @@ async function processSingleMatch({
                 row.reasoning = `[MATH WARNING] Zero/Neg EV. ${row.reasoning || ""}`;
             }
         } else {
-            // Positive EV
-            // If AI said AVOID/INFO but Math says Positive EV?
             const currentLevel = String(row.recommendation_level).toUpperCase();
             if (currentLevel === "AVOID" || currentLevel.includes("INFO") || currentLevel.includes("PROJECTED")) {
-                // AUTO-UPGRADE based on Edge strength
                 if (edge > 0.05) row.recommendation_level = "GOOD";
                 else if (edge > 0.02) row.recommendation_level = "LEAN";
-                else row.recommendation_level = "LEAN"; // Small edge
+                else row.recommendation_level = "LEAN";
 
                 row.reasoning = `[AUTO-UPGRADE] Valid Odds (${book}) + Positive EV (${(edge * 100).toFixed(1)}%). ${row.reasoning || ""}`;
             }
         }
 
-        // Ensure Stake is consistent with Edge
         if (edge > 0 && (row.stake_size === "0 unit" || !row.stake_size)) {
-            // Inject default stake if positive edge
             row.stake_size = "1 Unit";
         }
 
@@ -724,7 +687,7 @@ async function processSingleMatch({
 
 async function callOpenAI({ apiKey, model, system, user, jsonMode, maxTokens, signal }) {
     requireKey("OpenAI", apiKey);
-    const targetModel = model || "gpt-5.2";
+    const targetModel = model || "gpt-4.1";
     const payload = {
         model: targetModel,
         messages: [
@@ -739,61 +702,36 @@ async function callOpenAI({ apiKey, model, system, user, jsonMode, maxTokens, si
         const res = await axios.post("/api/openai/chat/completions", payload, {
             headers: { Authorization: `Bearer ${apiKey}` },
             signal,
+            timeout: 90000, // 90s timeout
         });
         return res?.data?.choices?.[0]?.message?.content || "{}";
     }, [], 2);
 }
 
 /**
- * DeepSeek Caller
- * DeepSeek R1 often doesn't align perfectly with json_object mode like OpenAI,
- * so we might need to rely on prompt engineering for JSON.
+ * Unified Research Caller: Perplexity (primary), OpenAI fallback
  */
-async function callDeepSeek({ apiKey, model, system, user, jsonMode, maxTokens, signal }) {
-    requireKey("DeepSeek", apiKey);
-    const targetModel = model || "deepseek-reasoner";
-
-    // Deepseek often has a 'reasoning_content' field for R1, or just 'content'
-    const payload = {
-        model: targetModel,
-        messages: [
-            { role: "system", content: system || "You are a helpful assistant." },
-            { role: "user", content: user || "" },
-        ],
-        max_tokens: Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 2000,
-    };
-
-    // If jsonMode is requested, append strong instruction if not already present
-    if (jsonMode && !String(system).includes("JSON")) {
-        payload.messages[0].content += " Output ONLY valid JSON.";
-    }
-
-    return retryAsync(async () => {
-        const res = await axios.post("/api/deepseek/chat/completions", payload, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-            signal,
-        });
-        return res?.data?.choices?.[0]?.message?.content || "{}";
-    }, [], 2);
-}
-
-/**
- * Unified Research Caller: Defaults to Perplexity, falls back to OpenAI (GPT-5.2) ONLY if available
- * PhD-Level: Never attempt API calls without valid keys
- */
-async function performResearch({ perplexityParams, openaiParams, deepseekParams, query, signal }) {
+async function performResearch({ perplexityParams, openaiParams, query, matchContext, signal }) {
     const { apiKey: pplxKey, model: pplxModel } = perplexityParams || {};
-    const { apiKey: openAIKey, orchestratorModel } = openaiParams || {};
-    const { apiKey: dsKey, model: dsModel, enabled: dsEnabled } = deepseekParams || {};
+    const { apiKey: openAIKey, orchestratorModel, model: openaiModelAlt } = openaiParams || {};
+    const resolvedOpenAIModel = orchestratorModel || openaiModelAlt || 'gpt-4.1';
+
+    // Build match context string for system prompts
+    const matchInfo = matchContext
+        ? `Context: ${matchContext.team_1 || matchContext.homeTeam || ''} vs ${matchContext.team_2 || matchContext.awayTeam || ''} | Sport: ${matchContext.sport || 'FOOTBALL'} | Tournament: ${matchContext.tournament || 'Unknown'} | Odds: ${JSON.stringify(matchContext.odds || {})}`
+        : '';
 
     // 1. Try Perplexity (Primary) if key available
     if (hasValidKey(pplxKey)) {
         try {
-            console.log(`[Orchestrator] 🔍 PERFORMING RESEARCH via Perplexity... Query: "${query.slice(0, 50)}..."`);
+            console.log(`[Orchestrator] PERFORMING RESEARCH via Perplexity... Query: "${query.slice(0, 80)}..."`);
+            const systemContent = matchInfo
+                ? `You are a factual sports researcher. Be concise, precise, and data-driven. ${matchInfo}`
+                : "You are a factual sports researcher. Be concise and precise.";
             const payload = {
                 model: pplxModel || "sonar-pro",
                 messages: [
-                    { role: "system", content: "You are a factual sports researcher. Be concise and precise." },
+                    { role: "system", content: systemContent },
                     { role: "user", content: String(query || "").slice(0, 2000) },
                 ],
             };
@@ -801,42 +739,27 @@ async function performResearch({ perplexityParams, openaiParams, deepseekParams,
                 const res = await axios.post("/api/perplexity/chat/completions", payload, {
                     headers: { Authorization: `Bearer ${pplxKey}` },
                     signal,
+                    timeout: 45000,
                 });
                 const content = res?.data?.choices?.[0]?.message?.content || "";
-                console.log(`[Orchestrator] ✅ Perplexity Result (${content.length} chars)`);
+                console.log(`[Orchestrator] Perplexity Result (${content.length} chars)`);
                 return `[SOURCE: PERPLEXITY]\n${content}`;
             }, [], 2);
         } catch (err) {
-            console.warn("[Orchestrator] Perplexity failed:", err.message);
-            // Fallthrough to alternatives
-        }
-    }
-
-    // 2. Try DeepSeek (Secondary) if enabled and has key
-    if (dsEnabled && hasValidKey(dsKey)) {
-        try {
-            console.log("[Orchestrator] Using DeepSeek for Research (Fallback)");
-            return `[SOURCE: DEEPSEEK]\n${await callDeepSeek({
-                apiKey: dsKey,
-                model: dsModel,
-                system: "You are an expert sports researcher. Provide factual, concise information.",
-                user: `Research query: ${query}`,
-                jsonMode: false,
-                maxTokens: 1000,
-                signal,
-            })}`;
-        } catch (err) {
-            console.warn("[Orchestrator] DeepSeek research failed:", err.message);
+            console.warn("[Orchestrator] Perplexity FAILED:", err.message);
+            if (err.response) {
+                console.error("[Orchestrator] Perplexity HTTP Status:", err.response.status, "Data:", JSON.stringify(err.response.data).slice(0, 300));
+            }
             // Fallthrough to OpenAI
         }
     }
 
-    // 3. Fallback to OpenAI (Tertiary) ONLY if key available
+    // 2. Fallback to OpenAI
     if (hasValidKey(openAIKey)) {
-        console.log("[Orchestrator] Using GPT-5.2 for Research (Fallback - Offline Mode)");
+        console.log("[Orchestrator] Using GPT for Research (Fallback - Offline Mode)");
         return `[SOURCE: OPENAI_INTERNAL_KNOWLEDGE]\n${await callOpenAI({
             apiKey: openAIKey,
-            model: orchestratorModel, // "gpt-5.2" or "gpt-4o"
+            model: resolvedOpenAIModel,
             system: "You are an expert sports analyst with vast internal knowledge. You do NOT have live web access.",
             user: `ANALYSIS TASK: Provide your best assessment for: "${query}"\n\nInstructions:\n- Rely on your internal training data (team stats scenarios, historical performance).\n- Clearly state that this is based on general knowledge, not real-time news.\n- Focus on strategic implications (e.g. 'Typical home advantage for Team A').`,
             jsonMode: false,
@@ -845,7 +768,7 @@ async function performResearch({ perplexityParams, openaiParams, deepseekParams,
         })}`;
     }
 
-    // 4. No API available - return informative error instead of crashing
-    console.error("[Orchestrator] No research API available (all keys missing or disabled)");
+    // 3. No API available
+    console.error("[Orchestrator] No research API available (all keys missing)");
     return `[ERROR] Research unavailable: No API keys configured. Query was: "${query}"`;
 }

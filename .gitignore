@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+
+# Local Netlify folder
+.netlify
+
+# Environment variables / secrets
+.env
+.env.*
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+nul
+
+# Debug / temp files
+*.log
+npm-debug.log*
+frontend/test-results/
+frontend/test_output*.txt
+frontend/test_final_verification.txt
+frontend/test_full_log.txt
+frontend/lint_errors*.txt
+frontend/lint_v2_errors.txt
+frontend/fix_howitworks.js
+verify_output.txt
+
+# Archives
+*.zip
+
+# Temp repos
+temp_skills_repo/
+temp_skills_repo_debug/
+
+# Claude / Agent
+.claude/
+.agent/

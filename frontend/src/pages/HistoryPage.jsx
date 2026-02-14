@@ -1,7 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { CloudLightning, TrendingUp, TrendingDown, DollarSign, Calendar, Target, Activity, Trash2, Edit3, Check, X, Filter, BarChart2 } from 'lucide-react';
-import ThemeToggle from '../components/ThemeToggle';
+import React, { useState, useMemo } from 'react';
+import { TrendingUp, DollarSign, Target, Activity, Trash2, Check, X, Filter } from 'lucide-react';
 import clsx from 'clsx';
 import { safeText, toNumber } from '../shared';
 import PortfolioDoctor from '../components/History/PortfolioDoctor.jsx';
@@ -19,14 +18,24 @@ const formatMoney = (amount) => {
 
 const KPICard = ({ label, value, subValue, icon: Icon, trend, darkMode }) => {
     const trendColor = trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : 'text-slate-500';
+    const iconBg = trend === 'up'
+        ? (darkMode ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200/60')
+        : trend === 'down'
+            ? (darkMode ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200/60')
+            : (darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200');
     return (
-        <div className={clsx("p-5 rounded-xl border relative overflow-hidden group", darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm")}>
-            <div className={clsx("absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity", trendColor)}>
-                <Icon size={48} />
+        <div className={clsx(
+            "p-5 rounded-2xl border relative overflow-hidden transition-all duration-200",
+            darkMode ? "bg-panel border-subtle hover:border-cyan-500/20" : "bg-panel border-subtle hover:border-slate-300 shadow-sm"
+        )}>
+            <div className="flex items-start justify-between mb-3">
+                <div className={clsx("p-2.5 rounded-xl border", iconBg)}>
+                    <Icon size={18} className={trendColor} />
+                </div>
             </div>
-            <h3 className={clsx("text-xs font-bold uppercase tracking-widest mb-1", darkMode ? "text-slate-500" : "text-slate-400")}>{label}</h3>
-            <div className={clsx("text-2xl font-mono font-bold tracking-tight mb-1", darkMode ? "text-white" : "text-slate-900")}>{value}</div>
-            <p className={clsx("text-[10px] font-medium uppercase tracking-wider", darkMode ? "text-slate-400" : "text-slate-500")}>
+            <div className={clsx("text-2xl font-black tracking-tight mb-1 text-primary")}>{value}</div>
+            <h3 className={clsx("text-[10px] font-black uppercase tracking-[0.15em] mb-0.5 text-tertiary")}>{label}</h3>
+            <p className={clsx("text-[10px] font-medium text-secondary")}>
                 {subValue}
             </p>
         </div>
@@ -64,18 +73,18 @@ const BetRow = ({ bet, darkMode, onUpdate, onDelete, initialBankroll }) => {
     return (
         <tr className={clsx("text-sm group", darkMode ? "hover:bg-slate-900/40" : "hover:bg-slate-50")}>
             <td className="p-4">
-                <div className={clsx("font-bold mb-0.5", darkMode ? "text-white" : "text-slate-900")}>
+                <div className="font-bold mb-0.5 text-primary">
                     {bet.matchLabel}
                 </div>
-                <div className={clsx("text-xs", darkMode ? "text-slate-500" : "text-slate-500")}>
+                <div className="text-xs text-tertiary">
                     {new Date(bet.matchTimestamp).toLocaleDateString()} • {bet.sport}
                 </div>
             </td>
             <td className="p-4">
-                <div className={clsx("font-medium", darkMode ? "text-cyan-300" : "text-cyan-700")}>
+                <div className={clsx("font-bold", darkMode ? "text-cyan-300" : "text-amber-700")}>
                     {safeText(bet.selection, 'Selection')}
                 </div>
-                <div className={clsx("text-[10px]", darkMode ? "text-slate-500" : "text-slate-400")}>
+                <div className="text-[10px] text-tertiary">
                     {safeText(bet.market, 'Market')}
                 </div>
             </td>
@@ -90,10 +99,10 @@ const BetRow = ({ bet, darkMode, onUpdate, onDelete, initialBankroll }) => {
                     <button
                         onClick={() => onUpdate({ status: 'WIN' })}
                         className={clsx(
-                            "p-1.5 rounded transition-colors border",
+                            "p-1.5 rounded-lg transition-all border",
                             bet.status === 'WIN'
-                                ? (darkMode ? "bg-emerald-500 text-black border-emerald-500" : "bg-emerald-500 text-white border-emerald-500")
-                                : (darkMode ? "bg-slate-900 border-slate-700 text-slate-600 hover:text-emerald-500 hover:border-emerald-500/50" : "bg-white border-slate-200 text-slate-400 hover:text-emerald-600")
+                                ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/20"
+                                : (darkMode ? "bg-black/30 border-slate-700 text-slate-600 hover:text-emerald-400 hover:border-emerald-500/40" : "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300")
                         )}
                         title="Mark as WIN"
                     >
@@ -102,10 +111,10 @@ const BetRow = ({ bet, darkMode, onUpdate, onDelete, initialBankroll }) => {
                     <button
                         onClick={() => onUpdate({ status: 'LOSS' })}
                         className={clsx(
-                            "p-1.5 rounded transition-colors border",
+                            "p-1.5 rounded-lg transition-all border",
                             bet.status === 'LOSS'
-                                ? (darkMode ? "bg-red-500 text-white border-red-500" : "bg-red-500 text-white border-red-500")
-                                : (darkMode ? "bg-slate-900 border-slate-700 text-slate-600 hover:text-red-500 hover:border-red-500/50" : "bg-white border-slate-200 text-slate-400 hover:text-red-600")
+                                ? "bg-red-500 text-white border-red-500 shadow-sm shadow-red-500/20"
+                                : (darkMode ? "bg-black/30 border-slate-700 text-slate-600 hover:text-red-400 hover:border-red-500/40" : "bg-white border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-300")
                         )}
                         title="Mark as LOSS"
                     >
@@ -133,7 +142,6 @@ const BetRow = ({ bet, darkMode, onUpdate, onDelete, initialBankroll }) => {
 
 const HistoryPage = ({
     darkMode,
-    setDarkMode,
     history,
     onUpdateBet,
     onDeleteMatch,
@@ -144,11 +152,6 @@ const HistoryPage = ({
     modelSettings
 }) => {
     const [filter, setFilter] = useState('ALL'); // ALL, PENDING, SETTLED, WIN, LOSS
-
-    // Log mount to debug
-    useEffect(() => {
-        console.log("[HistoryPage] Mounted with history length:", history?.length);
-    }, [history]);
 
     // --- AGGREGATE STATS ---
     const stats = useMemo(() => {
@@ -243,30 +246,29 @@ const HistoryPage = ({
         <div className="animate-in fade-in zoom-in duration-300 pb-20">
             {/* Header */}
             <div className="flex items-center justify-between mb-8 pb-6 border-b border-subtle">
-                <div className="flex items-center gap-3">
-                    <div className={clsx("p-3 rounded-2xl", darkMode ? 'bg-purple-900/20 text-purple-400' : 'bg-purple-50 text-purple-600')}>
-                        <CloudLightning size={28} />
+                <div className="flex items-center gap-4">
+                    <div className={clsx("p-3 rounded-2xl", darkMode ? 'bg-gradient-to-br from-cyan-500/15 to-blue-500/10 border border-cyan-500/20' : 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60')}>
+                        <TrendingUp size={28} className={darkMode ? 'text-cyan-400' : 'text-amber-600'} />
                     </div>
                     <div>
-                        <h2 className={clsx("text-2xl font-bold", darkMode ? 'text-white' : 'text-slate-800')}>Analysis History</h2>
-                        <p className={clsx("text-sm tracking-wide", darkMode ? 'text-slate-400' : 'text-slate-500')}>
-                            PhD-Level Performance Tracking & Portfolio Management
+                        <h2 className="text-2xl font-black tracking-tight text-primary">Analysis History</h2>
+                        <p className="text-sm text-secondary mt-0.5">
+                            Performance tracking & portfolio management
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    {history.length > 0 && (
-                        <button
-                            onClick={onClearHistory}
-                            className={clsx("text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg transition-colors",
-                                darkMode ? "bg-red-900/20 text-red-400 hover:bg-red-900/30" : "bg-red-50 text-red-600 hover:bg-red-100")}
-                        >
-                            <span className="flex items-center gap-2"><Trash2 size={14} /> Clear All</span>
-                        </button>
-                    )}
-                    <ThemeToggle darkMode={darkMode} setDarkMode={setDarkMode} />
-                </div>
+                {history.length > 0 && (
+                    <button
+                        onClick={onClearHistory}
+                        className={clsx(
+                            "flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all border",
+                            darkMode ? "bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20" : "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
+                        )}
+                    >
+                        <Trash2 size={14} /> Clear All
+                    </button>
+                )}
             </div>
 
             {/* KPI DASHBOARD */}
@@ -316,16 +318,19 @@ const HistoryPage = ({
             )}
 
             {/* FILTER BAR */}
-            <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+            <div className={clsx(
+                "inline-flex p-1.5 rounded-2xl border mb-6",
+                darkMode ? "bg-black/30 border-slate-700/40" : "bg-slate-100 border-slate-200"
+            )}>
                 {['ALL', 'PENDING', 'WIN', 'LOSS'].map(f => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
                         className={clsx(
-                            "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
+                            "px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap",
                             filter === f
-                                ? (darkMode ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/20" : "bg-cyan-600 text-white shadow-lg")
-                                : (darkMode ? "bg-slate-900 text-slate-400 hover:bg-slate-800" : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200")
+                                ? (darkMode ? "bg-slate-800 text-cyan-300 shadow-md" : "bg-white text-slate-800 shadow-sm")
+                                : (darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-500 hover:text-slate-700")
                         )}
                     >
                         {f}
@@ -335,10 +340,10 @@ const HistoryPage = ({
 
             {/* BET LOG TABLE */}
             {filteredBets.length > 0 ? (
-                <div className={clsx("rounded-xl border overflow-hidden", darkMode ? "bg-slate-950/50 border-slate-800" : "bg-white border-slate-200 shadow-sm")}>
+                <div className={clsx("rounded-2xl border overflow-hidden", darkMode ? "bg-panel border-subtle" : "bg-panel border-subtle shadow-sm")}>
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className={clsx("text-xs font-bold uppercase tracking-widest border-b", darkMode ? "text-slate-500 border-slate-800 bg-slate-900/50" : "text-slate-400 border-slate-100 bg-slate-50")}>
+                            <tr className={clsx("text-[10px] font-black uppercase tracking-[0.15em] border-b", darkMode ? "text-slate-500 border-subtle bg-black/30" : "text-slate-400 border-subtle bg-slate-50/80")}>
                                 <th className="p-4">Date / Event</th>
                                 <th className="p-4">Selection</th>
                                 <th className="p-4 text-right">Odds</th>
@@ -364,9 +369,9 @@ const HistoryPage = ({
                     </table>
                 </div>
             ) : (
-                <div className={clsx("flex flex-col items-center justify-center h-64 rounded-xl border border-dashed", darkMode ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-400")}>
-                    <Filter size={32} className="mb-4 opacity-50" />
-                    <p>No bets found for filter "{filter}"</p>
+                <div className={clsx("flex flex-col items-center justify-center h-64 rounded-2xl border-2 border-dashed", darkMode ? "border-slate-800 text-slate-600" : "border-slate-200 text-slate-400")}>
+                    <Filter size={32} className="mb-4 opacity-40" />
+                    <p className="text-sm font-medium">No bets found for filter "{filter}"</p>
                 </div>
             )}
         </div>

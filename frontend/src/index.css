@@ -24,7 +24,7 @@
    Single-block stylesheet (drop-in) for the betting dashboard
    ========================================================================== */
 
-/* GLOBAL TOKENS (dark-focused, de a light módot nem bántja, ha van külön) */
+/* GLOBAL TOKENS (dark-focused, light mode has separate overrides) */
 :root {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -80,7 +80,7 @@ body.dark {
   --accent-gold: #FCD34D;
   --accent-gold-soft: rgba(251, 191, 36, 0.15);
 
-  /* Borders: Lighter/Sharper for Black Background ("Fordítva kell") */
+  /* Borders: Lighter/Sharper for Black Background */
   --border-subtle: #27272A;
   /* Visibly lighter than bg */
   --border-strong: #3F3F46;
@@ -95,6 +95,11 @@ body.dark {
   --toggle-bg: #27272A;
   --toggle-circle: #000000;
   --toggle-icon: #A1A1AA;
+}
+
+:root[data-theme="dark"] option {
+  background-color: #000000;
+  color: #FFFFFF;
 }
 
 /* ==========================================================================
@@ -173,20 +178,20 @@ body {
     color var(--dur-normal) var(--ease-smooth);
 }
 
-/* teljes app keret */
+/* Full app frame */
 .app-root {
   min-height: 100vh;
   background-color: var(--bg-body);
 }
 
-/* központi dashboard shell */
+/* Central dashboard shell */
 .app-shell {
   max-width: var(--content-width-max);
   margin: 0 auto;
   padding: 16px 24px 32px;
 }
 
-/* bal oldali sidebar */
+/* Left sidebar */
 .app-sidebar {
   background-color: var(--bg-sidebar) !important;
   color: var(--text-secondary);
@@ -208,7 +213,7 @@ body {
   gap: 16px;
 }
 
-/* RUN SYSTEM gomb */
+/* RUN SYSTEM button */
 .btn-run-system {
   border-radius: var(--r-pill);
   padding: 10px 20px;
@@ -341,7 +346,7 @@ body {
 }
 
 /* ==========================================================================
-   DRAG-AND-DROP ZÓNA
+   DRAG-AND-DROP ZONE
    ========================================================================== */
 
 .drop-zone {
@@ -361,7 +366,7 @@ body {
   transform: translateY(-2px);
 }
 
-/* belső ikon kártya */
+/* Inner icon card */
 .drop-zone-icon {
   width: 96px;
   height: 96px;
@@ -376,7 +381,7 @@ body {
 }
 
 /* ==========================================================================
-   PÉNZ / STAKE INPUT
+   STAKE / MONEY INPUT
    ========================================================================== */
 
 .money-input-wrapper {
@@ -397,7 +402,7 @@ body {
   pointer-events: none;
 }
 
-/* fő pénz mező */
+/* Main stake input field */
 .money-input {
   width: 100%;
   border-radius: 18px;
@@ -516,7 +521,7 @@ body {
   background: transparent;
 }
 
-/* "Kicsi effekt amikor irok" - Scale + Glow */
+/* Input focus effect - Scale + Glow */
 .top-bar-input-wrapper:focus-within {
   background: var(--bg-elevated);
   border-color: var(--accent-cyan);

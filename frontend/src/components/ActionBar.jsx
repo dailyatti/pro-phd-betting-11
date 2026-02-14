@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { DollarSign, Play, Loader2, Square } from "lucide-react";
+import { DollarSign, Play, Loader2, Square, Gauge } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 const toNumber = (x) => {
@@ -12,17 +12,11 @@ const toNumber = (x) => {
     const n = Number(s);
     return Number.isFinite(n) ? n : NaN;
   }
-  const n = Number(x);
-  return Number.isFinite(n) ? n : NaN;
+  return NaN;
 };
 
-const clamp = (x, min, max) => Math.min(Math.max(x, min), max);
-
 /**
- * ActionBar — Premium + Production Hardened
- * - Ref-based focus (no document.querySelector)
- * - Bankroll numeric sanitization (keeps user typing fluid)
- * - Accessible buttons + stable state rendering
+ * ActionBar — Premium control strip with bankroll, run/stop, and theme toggle.
  */
 const ActionBar = ({
   darkMode,
@@ -51,17 +45,8 @@ const ActionBar = ({
 
   const handleBankrollChange = useCallback(
     (e) => {
-      // Keep raw string for UX (so user can type "300", delete, etc.)
       const raw = e.target.value;
-
-      // Allow empty (user clearing input)
-      if (raw === "") {
-        setBankroll("");
-        return;
-      }
-
-      // Remove obvious junk that number inputs still sometimes allow via paste
-      // (We still keep it permissive; validation happens elsewhere via bankrollOk)
+      if (raw === "") { setBankroll(""); return; }
       const cleaned = raw.replace(/[^\d.\-]/g, "");
       setBankroll(cleaned);
     },
@@ -75,7 +60,6 @@ const ActionBar = ({
     if (isScanning) return true;
     if (!canRun) return true;
     if (!bankrollOk || !bankrollIsPositive) return true;
-    // Additional check carried over from parent, but good to have here too visually
     return false;
   }, [isScanning, canRun, bankrollOk, bankrollIsPositive]);
 
@@ -84,15 +68,8 @@ const ActionBar = ({
     if (isRunning) return "System is currently running analysis...";
     if (!bankrollIsPositive) return "Please enter a bankroll number > 0";
     if (!bankrollOk) return "Bankroll format is invalid";
-
-    // PhD-Level Check: Research Key Requirement
-    if (!hasValidKeys) return "REQUIRES API KEY: Add Perplexity, OpenAI, or DeepSeek key in Settings.";
-
-    // Parent handles the specific canRun logic (e.g. text length vs queue)
+    if (!hasValidKeys) return "REQUIRES API KEY: Add Perplexity or OpenAI key in Settings.";
     if (!canRun) {
-      // We can try to guess WHY it's disabled based on props if we had them,
-      // but for now a generic message or relying on parent's boolean is okay.
-      // However, we can be more specific if we know the mode:
       if (inputMode === 'text' && (manualMatchTextLength || 0) < 10) return "Please enter at least 10 characters of match data";
       if (inputMode === 'screenshot') return "Upload at least one match screenshot to run analysis";
       return "Review inputs to run analysis";
@@ -107,29 +84,35 @@ const ActionBar = ({
   }, [isScanning, status]);
 
   return (
-    <div className="top-bar">
+    <div className="flex items-center gap-2.5 flex-shrink-0">
       {/* Theme Toggle */}
       <ThemeToggle darkMode={darkMode} setDarkMode={setDarkMode} />
 
       {/* Bankroll Input */}
-      <div className="flex items-center gap-2 px-2 border-r border-subtle h-full">
-        <div
-          className="top-bar-input-wrapper group cursor-text"
-          onClick={focusBankroll}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") focusBankroll();
-          }}
-          aria-label="Focus bankroll input"
-        >
-          <DollarSign
-            size={18}
-            className={[
-              "transition-colors",
-              bankrollIsPositive ? "text-emerald-500 group-focus-within:text-cyan-400" : "text-amber-500 group-focus-within:text-amber-400",
-            ].join(" ")}
-          />
+      <div
+        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border transition-all cursor-text group ${
+          darkMode
+            ? 'bg-black/50 border-slate-700/60 hover:border-cyan-500/40 focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/20'
+            : 'bg-white border-slate-200 hover:border-amber-300 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-300/30 shadow-sm'
+        }`}
+        onClick={focusBankroll}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") focusBankroll();
+        }}
+        aria-label="Focus bankroll input"
+      >
+        <Gauge
+          size={15}
+          className={
+            bankrollIsPositive
+              ? "text-emerald-500 group-focus-within:text-cyan-400 transition-colors"
+              : "text-amber-500 group-focus-within:text-amber-400 transition-colors"
+          }
+        />
+        <div className="flex items-center gap-0.5">
+          <DollarSign size={13} className="text-tertiary" />
           <input
             ref={inputRef}
             type="text"
@@ -137,7 +120,9 @@ const ActionBar = ({
             value={bankroll}
             onChange={handleBankrollChange}
             placeholder="300"
-            className="top-bar-input"
+            className={`bg-transparent outline-none font-mono font-bold text-sm w-20 ${
+              darkMode ? 'text-white placeholder-slate-600' : 'text-slate-800 placeholder-slate-400'
+            }`}
             aria-invalid={!bankrollOk || !bankrollIsPositive}
             aria-label="Bankroll amount"
           />
@@ -148,26 +133,31 @@ const ActionBar = ({
       {canStop ? (
         <button
           onClick={onStop}
-          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 px-6 py-3 rounded-xl font-bold text-sm transition-all"
+          className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 ${
+            darkMode
+              ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20'
+              : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200'
+          }`}
           type="button"
         >
-          <span className="inline-flex items-center gap-2">
-            <Square size={16} />
-            Stop Analysis
-          </span>
+          <Square size={16} />
+          Stop Analysis
         </button>
       ) : (
         <button
           onClick={onStart}
           disabled={runDisabled}
-          className={[
-            "px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest flex items-center gap-3 shadow-lg transition-all",
+          className={`flex items-center gap-3 px-8 py-3 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all ${
             runDisabled
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+              ? darkMode
+                ? "bg-slate-800/60 text-slate-600 cursor-not-allowed border border-slate-700/50"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
               : isRunning || isScanning
-                ? "bg-gradient-to-r from-cyan-700 to-blue-700 text-white/80"
-                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:shadow-cyan-500/25 text-white active:scale-95",
-          ].join(" ")}
+                ? "bg-gradient-to-r from-cyan-700 to-blue-700 text-white/80 border border-cyan-600/30"
+                : darkMode
+                  ? "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 active:scale-95 border border-cyan-500/30"
+                  : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-500/20 active:scale-95 border border-amber-400/30"
+          }`}
           title={runTitle}
           aria-disabled={runDisabled}
           type="button"
@@ -192,23 +182,19 @@ const ActionBar = ({
 ActionBar.propTypes = {
   darkMode: PropTypes.bool.isRequired,
   setDarkMode: PropTypes.func.isRequired,
-
   bankroll: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   setBankroll: PropTypes.func.isRequired,
-
   canRun: PropTypes.bool.isRequired,
   canStop: PropTypes.bool.isRequired,
-
   onStart: PropTypes.func.isRequired,
   onStop: PropTypes.func.isRequired,
-
   appStatus: PropTypes.string.isRequired,
   bankrollOk: PropTypes.bool.isRequired,
-
   isScanning: PropTypes.bool,
   isRunning: PropTypes.bool,
   inputMode: PropTypes.string,
   manualMatchTextLength: PropTypes.number,
+  hasValidKeys: PropTypes.bool,
 };
 
 export default ActionBar;

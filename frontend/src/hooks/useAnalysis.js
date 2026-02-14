@@ -14,8 +14,8 @@ import { hasPrimaryOdds } from '../agents/vision/utils/matchValidator.js';
  * Manages the full analysis workflow: Vision -> Explosion -> Orchestration -> Result.
  * 
  * @param {Object} config
- * @param {Object} config.apiKeys - { openai, perplexity, deepseek }
- * @param {Object} config.modelSettings - { openai, perplexity, deepseek }
+ * @param {Object} config.apiKeys - { openai, perplexity }
+ * @param {Object} config.modelSettings - { openai, perplexity }
  * @param {Function} config.updateBlackboard - Callback to update global state
  * @param {boolean} config.isMountedRef - Ref to ensure no updates on unmount
  * @returns {Object} Analysis state and start/stop handlers
@@ -68,7 +68,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
         // Simulation if no keys at all, but here checks openai specifically. 
         // We should allow simulation if explicit simulation mode, otherwise try to use available keys.
         // For now, assume if NO keys provided, it's simulation.
-        const isSimulation = !apiKeys.openai && !apiKeys.deepseek;
+        const isSimulation = !apiKeys.openai;
         console.log(isSimulation ? '--- SIMULATION MODE ACTIVE ---' : '--- LIVE AGENT MODE ---');
 
         const bankrollValue = bankroll === '' ? null : Number(bankroll);
@@ -201,8 +201,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                     console.log(`[Analysis Debug] Processing group ${group.matchLabel}. Images:`, allImagesRaw.map(r => ({ length: r?.length, prefix: String(r).slice(0, 30) })));
 
                     // Run Vision Scraper
-                    // If no OpenAI key but DeepSeek key exists, we might need a fallback or vision might fail.
-                    // Vision currently depends on OpenAI.
+                    // Vision depends on OpenAI.
                     const visionModel = modelSettings?.openai || 'gpt-5.2';
                     console.log(`[useAnalysis] Running Vision Scraper with model: ${visionModel}`);
 
@@ -383,10 +382,6 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                 try {
                     console.log(`[Analysis Debug] Calling runPerplexityDirectedLoop for ${groupLabel}`);
 
-                    // Determine DeepSeek Settings
-                    const useDS = modelSettings.deepseekEnabled && apiKeys.deepseek;
-                    const selectedDSModel = modelSettings.deepseek || 'deepseek-reasoner';
-
                     const orchestratorResult = await runPerplexityDirectedLoop({
                         visionData: md,
                         userModelItems: {},
@@ -398,11 +393,6 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                             apiKey: apiKeys.perplexity,
                             model: modelSettings.perplexity
                         } : null,
-                        deepseekParams: useDS ? {
-                            apiKey: apiKeys.deepseek,
-                            model: selectedDSModel,
-                            enabled: true
-                        } : null,
                         manualIntel: manualIntel,
                         bankroll: bankrollValue,
                         signal,
@@ -411,7 +401,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                                 handleStreamingUpdate({
                                     type: partialResult.type,
                                     matchId: md.matchId || md.__group?.matchId,
-                                    data: partialResult
+                                    data: partialResult.data
                                 });
                             }
                         }
@@ -420,7 +410,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                     return {
                         matchLabel: groupLabel,
                         sport: sport,
-                        model_used: useDS ? selectedDSModel : (modelSettings.openai || 'gpt-5.2'),
+                        model_used: modelSettings.openai || 'gpt-5.2',
                         evidence: orchestratorResult.evidence_log,
                         rounds: orchestratorResult.rounds_used,
                         ...orchestratorResult

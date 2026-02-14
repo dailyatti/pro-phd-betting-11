@@ -10,7 +10,7 @@
  */
 export const parseOdd = (raw) => {
     if (!raw) return null;
-    const s = String(raw).replace(/[^0-9.,\/+\-]/g, "").trim();
+    const s = String(raw).replace(/[^0-9.,/+\-]/g, "").trim();
 
     // 1. Fractional (e.g. 5/2)
     if (s.includes("/")) {
@@ -63,7 +63,7 @@ export function extractOddsFromResearch(evidenceLog, team1, team2) {
         const b = parseOdd(triple[2]);
         const c = parseOdd(triple[3]);
         if (isValidOdd(a) && isValidOdd(b) && isValidOdd(c)) {
-            return { homeOdds: a, drawOdds: b, awayOdds: c };
+            return { homeWin: a, draw: b, awayWin: c };
         }
     }
 
@@ -87,13 +87,13 @@ export function extractOddsFromResearch(evidenceLog, team1, team2) {
     const drawM = text.match(drawPattern);
     const awayM = text.match(awayPattern);
 
-    const homeOdds = parseOdd(homeM?.[1]);
-    const drawOdds = parseOdd(drawM?.[1]);
-    const awayOdds = parseOdd(awayM?.[1]);
+    const homeVal = parseOdd(homeM?.[1]);
+    const drawVal = parseOdd(drawM?.[1]);
+    const awayVal = parseOdd(awayM?.[1]);
 
     // Priority: Named > Pattern
-    if (isValidOdd(homeOdds) && isValidOdd(awayOdds)) {
-        return { homeOdds, drawOdds: isValidOdd(drawOdds) ? drawOdds : 0, awayOdds };
+    if (isValidOdd(homeVal) && isValidOdd(awayVal)) {
+        return { homeWin: homeVal, draw: isValidOdd(drawVal) ? drawVal : 0, awayWin: awayVal };
     }
 
     // Fallback to 2-way pattern
@@ -101,7 +101,7 @@ export function extractOddsFromResearch(evidenceLog, team1, team2) {
         const a = parseOdd(doubleMatch[1]);
         const b = parseOdd(doubleMatch[2]);
         if (isValidOdd(a) && isValidOdd(b)) {
-            return { homeOdds: a, drawOdds: 0, awayOdds: b };
+            return { homeWin: a, draw: 0, awayWin: b };
         }
     }
 

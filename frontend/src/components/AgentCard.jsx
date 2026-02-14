@@ -178,7 +178,7 @@ const AgentCard = ({
 
           <div>
             <div className="flex items-center gap-2">
-              <h3 className={clsx("text-base font-bold tracking-tight uppercase", darkMode ? "text-white" : "text-slate-900")}>
+              <h3 className="text-base font-black tracking-tight uppercase text-primary">
                 {agent?.title || agent?.name || id}
               </h3>
 
@@ -221,7 +221,7 @@ const AgentCard = ({
             onClick={handleToggle}
             className={clsx(
               "p-1.5 rounded-lg transition-colors border border-transparent",
-              darkMode ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-900"
+              "text-tertiary hover:text-primary"
             )}
             aria-label={isExpanded ? "Collapse card" : "Expand card"}
           >

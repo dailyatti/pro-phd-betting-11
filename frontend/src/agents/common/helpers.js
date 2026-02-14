@@ -24,7 +24,7 @@ import axios from 'axios';
 export const stripFences = (txt) =>
     String(txt || '')
         .replace(/^\uFEFF/, '')
-        .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove DeepSeek R1 thought chains
+        .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove <think> reasoning chains
         .replace(/```(?:json)?/gi, '')
         .replace(/```/g, '')
         .trim();
@@ -37,11 +37,32 @@ export const stripFences = (txt) =>
 export const tryParseJson = (txt) => {
     const cleaned = stripFences(txt);
     if (!cleaned) return null;
+
+    // Strategy 1: Direct parse (cleanest case)
     try {
         return JSON.parse(cleaned);
     } catch {
-        return null;
+        // continue to fallback strategies
     }
+
+    // Strategy 2: Extract first { ... } or [ ... ] block (handles text before/after JSON)
+    const jsonObjMatch = cleaned.match(/(\{[\s\S]*\})/);
+    if (jsonObjMatch) {
+        try { return JSON.parse(jsonObjMatch[1]); } catch { /* continue */ }
+    }
+
+    const jsonArrMatch = cleaned.match(/(\[[\s\S]*\])/);
+    if (jsonArrMatch) {
+        try { return JSON.parse(jsonArrMatch[1]); } catch { /* continue */ }
+    }
+
+    // Strategy 3: Fix trailing commas (common LLM mistake)
+    try {
+        return JSON.parse(cleaned.replace(/,\s*([}\]])/g, '$1'));
+    } catch { /* give up */ }
+
+    console.warn("[tryParseJson] All parse strategies failed. Preview:", cleaned.substring(0, 200));
+    return null;
 };
 
 /**

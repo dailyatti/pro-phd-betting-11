@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Key, Save, CheckCircle, ExternalLink, Cpu, Plus, ShieldCheck, Eye, EyeOff, Copy, Check, Settings } from 'lucide-react';
-import ThemeToggle from '../components/ThemeToggle';
+import { Key, Save, CheckCircle, ExternalLink, Cpu, Plus, ShieldCheck, Eye, EyeOff, Copy, Check } from 'lucide-react';
 
 const STORAGE_KEYS = {
     apiKeys: 'phd_betting_api_keys',
@@ -8,20 +7,17 @@ const STORAGE_KEYS = {
     customModels: 'phd_betting_custom_models'
 };
 
-const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '', deepseek: '' };
+const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '' };
 const DEFAULT_MODELS = {
     openai: 'gpt-5.2',
     perplexity: 'sonar-pro',
     visionProvider: 'openai',
-    deepseek: 'deepseek-reasoner',
-    useDeepSeekReasoning: false,
     // Provider enable/disable states
     openaiEnabled: true,
     perplexityEnabled: true,
-    geminiEnabled: true,
-    deepseekEnabled: true
+    geminiEnabled: true
 };
-const DEFAULT_CUSTOM_MODELS = { openai: [], perplexity: [], gemini: [], deepseek: [] };
+const DEFAULT_CUSTOM_MODELS = { openai: [], perplexity: [], gemini: [] };
 
 // Safe JSON parse helper
 const safeParse = (str, fallback) => {
@@ -153,7 +149,6 @@ const ConfigurationPage = ({
     modelSettings,
     setModelSettings,
     darkMode,
-    setDarkMode,
     setIsDirty
 }) => {
     // Local draft state (editing)
@@ -164,10 +159,8 @@ const ConfigurationPage = ({
     // Custom model UI toggles + inputs
     const [showCustomOpenai, setShowCustomOpenai] = useState(false);
     const [showCustomPerplexity, setShowCustomPerplexity] = useState(false);
-    const [showCustomDeepseek, setShowCustomDeepseek] = useState(false);
     const [customOpenai, setCustomOpenai] = useState('');
     const [customPerplexity, setCustomPerplexity] = useState('');
-    const [customDeepseek, setCustomDeepseek] = useState('');
 
     // Persisted custom models
     const [customModels, setCustomModels] = useState(DEFAULT_CUSTOM_MODELS);
@@ -209,7 +202,6 @@ const ConfigurationPage = ({
             const merged = {
                 openai: dedupe(storedCustom.openai),
                 perplexity: dedupe(storedCustom.perplexity),
-                deepseek: dedupe(storedCustom.deepseek)
             };
             setCustomModels(merged);
         }
@@ -247,16 +239,6 @@ const ConfigurationPage = ({
             focusRing: 'focus:ring-emerald-500/50',
             enabledKey: 'geminiEnabled'
         },
-        {
-            key: 'deepseek',
-            label: 'DeepSeek',
-            hint: 'Reasoning & Logic (Low Cost)',
-            placeholder: 'sk-...',
-            link: 'https://platform.deepseek.com/api_keys',
-            accent: 'text-indigo-400',
-            focusRing: 'focus:ring-indigo-500/50',
-            enabledKey: 'deepseekEnabled'
-        }
     ]), []);
 
     // Base model lists
@@ -282,12 +264,6 @@ const ConfigurationPage = ({
             'sonar-deep-research',
             'sonar-deep-research-pro'
         ],
-        deepseek: [
-            'deepseek-reasoner',
-            'deepseek-chat',
-            'deepseek-v3.2',
-            'deepseek-coder'
-        ],
         xai: [
             'grok-2-latest',
             'grok-2',
@@ -298,8 +274,7 @@ const ConfigurationPage = ({
     // Merge base + custom (deduped)
     const modelOptions = useMemo(() => ({
         openai: dedupe([...baseModelOptions.openai, ...(customModels.openai || [])]),
-        perplexity: dedupe([...baseModelOptions.perplexity, ...(customModels.perplexity || [])]),
-        deepseek: dedupe([...baseModelOptions.deepseek, ...(customModels.deepseek || [])])
+        perplexity: dedupe([...baseModelOptions.perplexity, ...(customModels.perplexity || [])])
     }), [baseModelOptions, customModels]);
 
     // UI Variables
@@ -340,7 +315,6 @@ const ConfigurationPage = ({
         const customToSave = {
             openai: dedupe(customModels.openai),
             perplexity: dedupe(customModels.perplexity),
-            deepseek: dedupe(customModels.deepseek)
         };
 
         persistAll(keysToSave, modelsToSave, customToSave);
@@ -357,7 +331,6 @@ const ConfigurationPage = ({
         let raw = '';
         if (provider === 'openai') raw = customOpenai;
         else if (provider === 'perplexity') raw = customPerplexity;
-        else if (provider === 'deepseek') raw = customDeepseek;
 
         const value = String(raw || '').trim();
         if (!value) return;
@@ -381,14 +354,11 @@ const ConfigurationPage = ({
         } else if (provider === 'perplexity') {
             setCustomPerplexity('');
             setShowCustomPerplexity(false);
-        } else if (provider === 'deepseek') {
-            setCustomDeepseek('');
-            setShowCustomDeepseek(false);
         }
-    }, [customOpenai, customPerplexity, customDeepseek]);
+    }, [customOpenai, customPerplexity]);
 
     const customModelsFlat = useMemo(() => {
-        return dedupe([...(customModels.openai || []), ...(customModels.perplexity || []), ...(customModels.deepseek || [])]);
+        return dedupe([...(customModels.openai || []), ...(customModels.perplexity || [])]);
     }, [customModels]);
 
     return (
@@ -402,28 +372,25 @@ const ConfigurationPage = ({
                 }`}
             >
                 {/* Header Section */}
-                <div className={`p-8 border-b ${dividerColor} relative overflow-hidden flex items-center justify-between`}>
+                <div className={`p-8 border-b ${dividerColor} relative overflow-hidden`}>
 
                     {/* Background glow for header */}
                     {darkMode && <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />}
 
-                    <div className="relative flex items-center gap-5 mb-2">
-                        <div className={`p-3.5 rounded-2xl shadow-inner
+                    <div className="relative flex items-center gap-5">
+                        <div className={`p-3.5 rounded-2xl
                             ${darkMode
-                                ? 'bg-gradient-to-br from-cyan-900/40 to-slate-800 border border-white/5'
-                                : 'bg-gradient-to-br from-white to-amber-50 border border-amber-100 shadow-amber-100'
+                                ? 'bg-gradient-to-br from-cyan-500/15 to-blue-500/10 border border-cyan-500/20'
+                                : 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60'
                             }`}
                         >
-                            <Key size={32} className={darkMode ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]" : "text-amber-500"} />
+                            <Key size={28} className={darkMode ? "text-cyan-400" : "text-amber-600"} />
                         </div>
                         <div>
                             <h2 className={`text-2xl font-black ${headerColor} tracking-tight`}>System Configuration</h2>
                             <p className={`text-sm mt-0.5 font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Manage secure keys & AI model behaviors.</p>
                         </div>
                     </div>
-
-                    {/* Theme Toggle in Header */}
-                    <ThemeToggle darkMode={darkMode} setDarkMode={setDarkMode} className="relative z-10" />
                 </div>
 
                 {/* Scrollable Content */}
@@ -492,8 +459,9 @@ const ConfigurationPage = ({
                                         value={localModels.openai}
                                         onChange={e => setLocalModels(prev => ({ ...prev, openai: e.target.value }))}
                                         className={`flex-1 rounded-xl p-3 text-sm outline-none border focus:ring-2 focus:ring-purple-500/50 transition-all ${inputBg}`}
+                                        style={{ colorScheme: darkMode ? 'dark' : 'light' }}
                                     >
-                                        {modelOptions.openai.map(m => <option key={m} value={m}>{m}</option>)}
+                                        {modelOptions.openai.map(m => <option key={m} value={m} style={{ background: darkMode ? '#000' : '#fff', color: darkMode ? '#fff' : '#000' }}>{m}</option>)}
                                     </select>
                                     <button onClick={() => setShowCustomOpenai(v => !v)} className={`p-3 rounded-xl border transition-colors ${darkMode ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                                         <Plus size={16} />
@@ -522,8 +490,9 @@ const ConfigurationPage = ({
                                         value={localModels.perplexity}
                                         onChange={e => setLocalModels(prev => ({ ...prev, perplexity: e.target.value }))}
                                         className={`flex-1 rounded-xl p-3 text-sm outline-none border focus:ring-2 focus:ring-purple-500/50 transition-all ${inputBg}`}
+                                        style={{ colorScheme: darkMode ? 'dark' : 'light' }}
                                     >
-                                        {modelOptions.perplexity.map(m => <option key={m} value={m}>{m}</option>)}
+                                        {modelOptions.perplexity.map(m => <option key={m} value={m} style={{ background: darkMode ? '#000' : '#fff', color: darkMode ? '#fff' : '#000' }}>{m}</option>)}
                                     </select>
                                     <button onClick={() => setShowCustomPerplexity(v => !v)} className={`p-3 rounded-xl border transition-colors ${darkMode ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                                         <Plus size={16} />
@@ -544,53 +513,6 @@ const ConfigurationPage = ({
                                 )}
                             </div>
 
-                            {/* DeepSeek Selector & Toggle */}
-                            <div className="flex flex-col gap-4">
-                                <div>
-                                    <label className={`text-xs font-bold uppercase tracking-wider mb-2 block text-secondary`}>Reasoning Agent</label>
-                                    <div className="flex gap-2">
-                                        <select
-                                            value={localModels.deepseek}
-                                            onChange={e => setLocalModels(prev => ({ ...prev, deepseek: e.target.value }))}
-                                            className={`flex-1 rounded-xl p-3 text-sm outline-none border focus:ring-2 focus:ring-purple-500/50 transition-all ${inputBg}`}
-                                        >
-                                            {modelOptions.deepseek.map(m => <option key={m} value={m}>{m}</option>)}
-                                        </select>
-                                        <button onClick={() => setShowCustomDeepseek(v => !v)} className={`p-3 rounded-xl border transition-colors ${darkMode ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                    {showCustomDeepseek && (
-                                        <div className="mt-2 flex gap-2 animate-in slide-in-from-top-2">
-                                            <input
-                                                value={customDeepseek}
-                                                onChange={e => setCustomDeepseek(e.target.value)}
-                                                onKeyDown={e => e.key === 'Enter' && addCustomModel('deepseek')}
-                                                className={`flex-1 rounded-lg p-2 text-xs border outline-none focus:border-purple-500 ${inputBg}`}
-                                                placeholder="Custom model ID..."
-                                                autoFocus
-                                            />
-                                            <button onClick={() => addCustomModel('deepseek')} className="px-3 py-1 bg-purple-600 rounded-lg text-white text-xs font-bold hover:bg-purple-500 transition-colors">Add</button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Enable Reasoning Toggle */}
-                                <div className={`p-4 rounded-xl border transition-all ${localModels.useDeepSeekReasoning ? (darkMode ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-indigo-50 border-indigo-200') : (darkMode ? 'bg-black/20 border-slate-700' : 'bg-slate-50 border-slate-200')}`}>
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <label className={`font-bold text-sm block ${localModels.useDeepSeekReasoning ? (darkMode ? 'text-indigo-300' : 'text-indigo-700') : 'text-secondary'}`}>Enable DeepSeek Logic</label>
-                                            <p className="text-[10px] opacity-70 mt-0.5">Offloads complex reasoning tasks (Audit, Plan) to DeepSeek.</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setLocalModels(prev => ({ ...prev, useDeepSeekReasoning: !prev.useDeepSeekReasoning }))}
-                                            className={`relative w-11 h-6 rounded-full transition-colors ${localModels.useDeepSeekReasoning ? 'bg-indigo-500' : 'bg-slate-600/50'}`}
-                                        >
-                                            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${localModels.useDeepSeekReasoning ? 'translate-x-5' : 'translate-x-0'}`} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
                         {customModelsFlat.length > 0 && (
@@ -599,47 +521,25 @@ const ConfigurationPage = ({
                             </p>
                         )}
                     </div>
-                </div>
 
-                {/* DeepSeek PhD Integration Guide */}
-                <div className={`mt-8 p-6 rounded-2xl border ${darkMode ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-indigo-50 border-indigo-100'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className={`p-2 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>
-                            <Cpu size={20} />
-                        </div>
-                        <h4 className={`font-bold ${darkMode ? 'text-indigo-200' : 'text-indigo-800'}`}>DeepSeek PhD Integration Guide</h4>
-                    </div>
-
-                    <div className={`space-y-3 text-xs leading-relaxed ${darkMode ? 'text-indigo-200/70' : 'text-indigo-800/70'}`}>
-                        <p>
-                            <strong className={darkMode ? 'text-indigo-100' : 'text-indigo-900'}>1. Reasoning Agent:</strong> When enabled, DeepSeek-R1 takes over the "PhD Planner" and "Auditor" roles. It uses advanced chain-of-thought logic to verify odds and architectural decisions, often outperforming GPT-4o at a fraction of the cost.
-                        </p>
-                        <p>
-                            <strong className={darkMode ? 'text-indigo-100' : 'text-indigo-900'}>2. Proxy Requirement:</strong> This integration routes requests through a local proxy (`/api/deepseek`) to bypass browser CORS restrictions.
-                            <span className="block mt-1 pl-2 border-l-2 border-indigo-500/30 italic">
-                                ⚠️ If you see connection errors, please restart your dev server (`npm run dev`) to load the new proxy config.
-                            </span>
-                        </p>
-                        <p>
-                            <strong className={darkMode ? 'text-indigo-100' : 'text-indigo-900'}>3. Cost Efficiency:</strong> DeepSeek is significantly cheaper than OpenAI. Use it for heavy bulk analysis to save credits while maintaining high reasoning fidelity.
-                        </p>
-                    </div>
                 </div>
 
                 {/* Footer / Actions */}
-                <div className={`p-6 border-t ${dividerColor} bg-opacity-50`}>
+                <div className={`p-8 border-t ${dividerColor}`}>
                     <button
                         onClick={handleSave}
-                        className={`w-full py-4 rounded-xl font-bold text-base tracking-wide flex items-center justify-center gap-3 transition-all
+                        className={`w-full py-4 rounded-2xl font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.98]
                             ${saved
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 scale-[1.01]'
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xl shadow-blue-900/20 hover:scale-[1.01] hover:shadow-blue-500/20'
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                : darkMode
+                                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 border border-cyan-500/30'
+                                    : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-500/20 border border-amber-400/30'
                             }`}
                     >
-                        {saved ? <CheckCircle size={20} /> : <Save size={20} />}
+                        {saved ? <CheckCircle size={18} /> : <Save size={18} />}
                         {saved ? 'Settings Saved' : 'Save Changes'}
                     </button>
-                    <p className={`text-[10px] text-center mt-4 font-medium opacity-60 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className="text-[10px] text-center mt-4 font-medium text-tertiary">
                         Changes apply immediately to your next analysis session.
                     </p>
                 </div>

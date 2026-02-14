@@ -24,25 +24,26 @@ const PortfolioDoctor = ({ history, apiKeys, modelSettings, darkMode }) => {
     };
 
     return (
-        <div className={clsx("rounded-xl border p-6 mb-8", darkMode ? "bg-indigo-950/20 border-indigo-900/50" : "bg-indigo-50 border-indigo-200")}>
+        <div className={clsx("rounded-2xl border p-6 mb-8", darkMode ? "bg-indigo-950/20 border-indigo-900/50" : "bg-indigo-50 border-indigo-200")}>
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <div className={clsx("p-2 rounded-lg", darkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600")}>
-                        <Microscope size={24} />
+                    <div className={clsx("p-2.5 rounded-xl border", darkMode ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" : "bg-indigo-100 border-indigo-200/60 text-indigo-600")}>
+                        <Microscope size={22} />
                     </div>
                     <div>
-                        <h3 className={clsx("text-lg font-bold", darkMode ? "text-white" : "text-indigo-900")}>Portfolio Doctor</h3>
-                        <p className={clsx("text-xs opacity-70", darkMode ? "text-indigo-300" : "text-indigo-700")}>AI-Powered Behavioral Analysis</p>
+                        <h3 className="text-lg font-black tracking-tight text-primary">Portfolio Doctor</h3>
+                        <p className="text-xs text-secondary">AI-Powered Behavioral Analysis</p>
                     </div>
                 </div>
 
                 <button
                     onClick={handleAnalyze}
                     disabled={isAnalyzing || history.length === 0}
-                    className={clsx("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
+                    className={clsx(
+                        "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all active:scale-[0.98]",
                         darkMode
-                            ? "bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50"
-                            : "bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+                            ? "bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 border border-indigo-500/30"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 border border-indigo-500/30"
                     )}
                 >
                     {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
@@ -52,16 +53,16 @@ const PortfolioDoctor = ({ history, apiKeys, modelSettings, darkMode }) => {
 
             {analysis && (
                 <div className="animate-in fade-in slide-in-from-top-2">
-                    <div className={clsx("p-4 rounded-lg mb-4 text-sm leading-relaxed border", darkMode ? "bg-black/20 border-white/10 text-indigo-100" : "bg-white border-indigo-100 text-indigo-800")}>
+                    <div className={clsx("p-4 rounded-xl mb-4 text-sm leading-relaxed border", darkMode ? "bg-black/20 border-white/5 text-indigo-100" : "bg-white border-indigo-100 text-indigo-800")}>
                         {analysis.summary}
                     </div>
 
-                    <h4 className={clsx("text-xs font-bold uppercase tracking-widest mb-2", darkMode ? "text-indigo-400" : "text-indigo-700")}>Rx Recommendations</h4>
+                    <h4 className={clsx("text-[10px] font-black uppercase tracking-[0.15em] mb-3", darkMode ? "text-indigo-400" : "text-indigo-700")}>Rx Recommendations</h4>
                     <ul className="space-y-2">
                         {analysis.recommendations.map((rec, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm">
-                                <span className="text-emerald-500 font-bold">✓</span>
-                                <span className={darkMode ? "text-slate-300" : "text-slate-700"}>{rec}</span>
+                                <span className="text-emerald-500 font-bold mt-0.5">✓</span>
+                                <span className="text-secondary">{rec}</span>
                             </li>
                         ))}
                     </ul>

@@ -25,12 +25,12 @@ const ManualInsider = ({
         aria-pressed={manualInsiderMode}
         aria-expanded={manualInsiderMode}
         className={clsxButton(
-          "w-full flex items-center justify-between p-4 rounded-xl border transition-all",
+          "w-full flex items-center justify-between p-4 rounded-2xl border transition-all",
           manualInsiderMode
             ? "bg-purple-900/10 border-purple-500/30"
             : darkMode
-              ? "bg-[#1e293b]/40 border-slate-800"
-              : "bg-white/80 border-amber-200"
+              ? "bg-black/20 border-subtle"
+              : "bg-panel border-subtle"
         )}
       >
         <div className="flex items-center gap-3">
@@ -40,8 +40,8 @@ const ManualInsider = ({
           />
           <span
             className={clsxButton(
-              "text-sm font-bold uppercase",
-              manualInsiderMode ? "text-purple-400" : darkMode ? "text-slate-500" : "text-amber-600"
+              "text-sm font-bold uppercase tracking-wider",
+              manualInsiderMode ? "text-purple-400" : "text-secondary"
             )}
           >
             Manual Insider Intel
@@ -72,10 +72,10 @@ const ManualInsider = ({
               onClick={handleCopyPrompt}
               disabled={!hasQueue}
               className={clsxButton(
-                "w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition-all shadow-sm",
+                "w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all",
                 darkMode
-                  ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-purple-400"
-                  : "bg-amber-50 hover:bg-amber-100 border-amber-200 text-purple-600",
+                  ? "bg-black/30 hover:bg-black/50 border-subtle text-purple-400"
+                  : "bg-panel hover:bg-elevated border-subtle text-purple-600",
                 !hasQueue ? "opacity-60 cursor-not-allowed" : ""
               )}
             >
@@ -85,16 +85,11 @@ const ManualInsider = ({
 
             {/* Separator with Label */}
             <div className="flex items-center gap-3">
-              <div className={clsxButton("h-px flex-1", darkMode ? "bg-slate-800" : "bg-slate-200")} />
-              <span
-                className={clsxButton(
-                  "text-[9px] font-bold uppercase tracking-widest",
-                  darkMode ? "text-slate-600" : "text-slate-400"
-                )}
-              >
+              <div className="h-px flex-1 bg-subtle" />
+              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-tertiary">
                 FOR SEARCH TOOLS
               </span>
-              <div className={clsxButton("h-px flex-1", darkMode ? "bg-slate-800" : "bg-slate-200")} />
+              <div className="h-px flex-1 bg-subtle" />
             </div>
 
             <div className="flex gap-2">
@@ -103,7 +98,7 @@ const ManualInsider = ({
                 onClick={() => handleCopyAndNavigate("perplexity")}
                 disabled={!hasQueue}
                 className={clsxButton(
-                  "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition-all shadow-sm",
+                  "flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all",
                   darkMode
                     ? "bg-sky-950/30 hover:bg-sky-900/40 border-sky-900/50 text-sky-400"
                     : "bg-sky-50 hover:bg-sky-100 border-sky-200 text-sky-600",
@@ -119,10 +114,10 @@ const ManualInsider = ({
                 onClick={() => handleCopyAndNavigate("grok")}
                 disabled={!hasQueue}
                 className={clsxButton(
-                  "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition-all shadow-sm",
+                  "flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all",
                   darkMode
-                    ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-white"
-                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700",
+                    ? "bg-black/30 hover:bg-black/50 border-subtle text-primary"
+                    : "bg-panel hover:bg-elevated border-subtle text-primary",
                   !hasQueue ? "opacity-60 cursor-not-allowed" : ""
                 )}
               >
@@ -142,10 +137,10 @@ const ManualInsider = ({
               onChange={(e) => setManualIntelText(e.target.value)}
               placeholder="Paste leaked intel here..."
               className={clsxButton(
-                "w-full h-24 rounded-lg border p-3 text-xs font-mono focus:border-purple-500 focus:outline-none resize-none transition-colors",
+                "w-full h-24 rounded-xl border p-3 text-xs font-mono focus:border-purple-500 focus:outline-none resize-none transition-colors",
                 darkMode
-                  ? "bg-[#0f172a] border-slate-700 text-slate-300"
-                  : "bg-white border-amber-200 text-slate-700 placeholder:text-slate-400"
+                  ? "bg-black/40 border-subtle text-primary placeholder:text-tertiary"
+                  : "bg-panel border-subtle text-primary placeholder:text-tertiary"
               )}
             />
             {manualIntelText.trim().length > 0 && (

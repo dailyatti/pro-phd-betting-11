@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { AlertCircle, Sparkles, XCircle } from "lucide-react";
+import { AlertCircle, Sparkles, XCircle, Play, Loader2 } from "lucide-react";
 
 // Layouts & Components
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -9,9 +9,11 @@ import Blackboard from "./components/Blackboard";
 import HeaderSection from "./components/HeaderSection";
 import ActionBar from "./components/ActionBar";
 import ManualInsider from "./components/ManualInsider";
+import LoadingScreen from "./components/LoadingScreen";
 import ConfigurationPage from "./pages/ConfigurationPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
 import HistoryPage from "./pages/HistoryPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import "./App.css";
 
@@ -20,63 +22,23 @@ import { useBlackboardState } from "./hooks/useBlackboardState";
 import { useSettings } from "./hooks/useSettings";
 import { useImageUpload } from "./hooks/useImageUpload";
 import { useAnalysis } from "./hooks/useAnalysis";
-import { parseWithDeepSeek, parseManualTextInput, normalizeForPipeline } from "./agents/textParser";
+import { useHistory } from "./hooks/useHistory";
+import { parseWithGPT, parseManualTextInput, normalizeForPipeline } from "./agents/textParser";
 
-// -----------------------------
-// Utilities (local, tiny & safe)
-// -----------------------------
+// Utilities
+import {
+  safeJsonParse,
+
+  normalizeView,
+  normalizeStatus,
+  isRunningStatus,
+  coerceBankroll,
+  copyToClipboard,
+  genId
+} from "./utils/common";
+
 const STORAGE_KEY = "phd_betting_app_v1";
-const HISTORY_KEY = "phd_betting_history_v1";
 
-const safeJsonParse = (s) => {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-};
-
-const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-
-const normalizeView = (v) => {
-  const x = String(v || "").toLowerCase().trim();
-  if (x === "dashboard" || x === "settings" || x === "methodology" || x === "history") return x;
-  return "dashboard";
-};
-
-const normalizeStatus = (s) => String(s || "IDLE").toUpperCase().trim();
-
-const isRunningStatus = (status) => {
-  const s = normalizeStatus(status);
-  return s === "VISION" || s === "FACTS" || s === "INTEL" || s === "STRATEGY";
-};
-
-const coerceBankroll = (raw) => {
-  if (raw === "" || raw == null) return { n: 0, ok: false };
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return { n: 0, ok: false };
-  if (n <= 0) return { n, ok: false };
-  return { n: clamp(n, 0, 1_000_000_000), ok: true };
-};
-
-async function copyToClipboard(text) {
-  if (navigator?.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return true;
-  }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.setAttribute("readonly", "");
-  ta.style.position = "fixed";
-  ta.style.top = "-1000px";
-  ta.style.left = "-1000px";
-  document.body.appendChild(ta);
-  ta.select();
-  const ok = document.execCommand("copy");
-  document.body.removeChild(ta);
-  if (!ok) throw new Error("Clipboard fallback failed");
-  return true;
-}
 
 function App() {
   // --- Mount Safety (StrictMode-safe) ---
@@ -113,7 +75,9 @@ function App() {
 
   // --- Input Mode State (Screenshot vs Manual Text) ---
   const [inputMode, setInputMode] = useState(() => persisted?.inputMode || 'screenshot'); // 'screenshot' | 'text'
-  const [manualMatchText, setManualMatchText] = useState(() => (typeof persisted?.manualMatchText === "string" ? persisted.manualMatchText : ""));
+  const [manualMatchText, setManualMatchText] = useState(""); // Never restore from localStorage — fresh start every session
+  const [isParsingText, setIsParsingText] = useState(false); // GPT parsing in progress
+  const [parseError, setParseError] = useState(""); // Text parse error message
 
   // Ref for auto-scroll
   const blackboardRef = useRef(null);
@@ -129,8 +93,6 @@ function App() {
     }
   }, [darkMode]);
 
-  // --- ID Generator (stable) ---
-  const genId = useCallback(() => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, []);
 
   // --- Initialize Hooks ---
   const { blackboardState, updateBlackboard, resetBlackboard } = useBlackboardState();
@@ -150,6 +112,15 @@ function App() {
       setBankroll(String(persisted.bankroll));
     }
   }, [persisted, bankroll, setBankroll]);
+
+  const {
+    history,
+    handleAddToHistory,
+    handleUpdateHistoryItem,
+    handleDeleteHistoryItem,
+    handleDeleteBet,
+    handleClearHistory,
+  } = useHistory();
 
   const {
     imageGroups,
@@ -189,9 +160,6 @@ function App() {
   const appStatus = useMemo(() => normalizeStatus(status), [status]);
   const isRunning = useMemo(() => isRunningStatus(appStatus), [appStatus]);
   const hasQueue = (imageGroups?.length || 0) > 0;
-  console.log(`[App Render] imageGroups length: ${imageGroups?.length}, hasQueue: ${hasQueue}`);
-
-  // Auto-scroll to analysis when running starts
   // Auto-scroll to analysis when running starts
   useEffect(() => {
     if (isRunning) {
@@ -211,115 +179,6 @@ function App() {
   const bankrollMeta = useMemo(() => coerceBankroll(bankroll), [bankroll]);
   const bankrollOk = bankrollMeta.ok;
 
-  // --- History State Management ---
-  const [history, setHistory] = useState(() => {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    const parsed = safeJsonParse(raw || "");
-    return Array.isArray(parsed) ? parsed : [];
-  });
-
-  // Persist History
-  useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    } catch {
-      // ignore
-    }
-  }, [history]);
-
-  // Accepts either:
-  // - array of match results
-  // - single match result object
-  // Accepts either:
-  // - single result object
-  // - array of result objects
-  // - result object with "strategies" array (multi-match)
-  const handleAddToHistory = useCallback(
-    (analysisResults) => {
-      // MASTER PROMPT FIX: flatten strategies so every match is 1 entry
-      const inputs = Array.isArray(analysisResults) ? analysisResults : (analysisResults ? [analysisResults] : []);
-      const newEntries = [];
-      const timestamp = new Date().toISOString();
-
-      inputs.forEach((result) => {
-        // If the result has a 'strategies' array, those are the individual matches
-        const matches = Array.isArray(result?.strategies) ? result.strategies : [result];
-
-        matches.forEach((match) => {
-          if (!match) return;
-
-          const recs = Array.isArray(match.recommendations) ? match.recommendations : [];
-          // Unique match ID
-          const matchId = match.matchId || match.match_id || genId();
-
-          newEntries.push({
-            id: matchId,
-            timestamp,
-            matchLabel: match.matchLabel || match.selection || "Unknown Match",
-            sport: match.sport || "UNKNOWN",
-            recommendations: recs,
-            bets: recs.map((r) => ({
-              ...r,
-              id: genId(),
-              status: "PENDING",
-              actual_stake: r?.stake_size ?? "",
-              actual_odds: r?.odds ?? "",
-              pnl: 0,
-              notes: "",
-            })),
-            summary: match.summary_note || match.match_analysis?.summary || "",
-            match_analysis: match.match_analysis,
-            confidence: match.confidence,
-            formula_selection: match.formula_selection
-          });
-        });
-      });
-
-      setHistory((prev) => {
-        // Deduplicate by ID just in case
-        const seen = new Set(prev.map(p => p.id));
-        const uniqueNew = newEntries.filter(e => !seen.has(e.id));
-        return [...uniqueNew, ...prev];
-      });
-    },
-    [genId]
-  );
-
-  const handleUpdateHistoryItem = useCallback((matchId, betId, updates) => {
-    setHistory((prev) =>
-      prev.map((match) => {
-        if (match.id !== matchId) return match;
-        const updatedBets = (match.bets || []).map((bet) => (bet.id === betId ? { ...bet, ...updates } : bet));
-        return { ...match, bets: updatedBets };
-      })
-    );
-  }, []);
-
-  const handleDeleteHistoryItem = useCallback((matchId) => {
-    if (window.confirm("Are you sure you want to delete this entire match event and all its bets?")) {
-      setHistory((prev) => prev.filter((m) => m.id !== matchId));
-    }
-  }, []);
-
-  const handleDeleteBet = useCallback((matchId, betId) => {
-    if (!window.confirm("Delete this specific bet?")) return;
-
-    setHistory((prev) =>
-      prev
-        .map((match) => {
-          if (match.id !== matchId) return match;
-          const newBets = (match.bets || []).filter((b) => b.id !== betId);
-          return { ...match, bets: newBets };
-        })
-        .filter((match) => (match.bets?.length || 0) > 0)
-    );
-  }, []);
-
-  const handleClearHistory = useCallback(() => {
-    if (window.confirm("Are you sure you want to delete ALL betting history? This cannot be undone.")) {
-      setHistory([]);
-    }
-  }, []);
 
   const appError = useMemo(() => {
     const e = uploadError || analysisError;
@@ -336,14 +195,13 @@ function App() {
       manualIntelText: manualIntelText.slice(0, 8000),
       bankroll: bankrollMeta.ok ? bankrollMeta.n : bankroll,
       inputMode,
-      manualMatchText: manualMatchText.slice(0, 20000),
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // ignore
     }
-  }, [currentView, darkMode, manualInsiderMode, manualIntelText, bankroll, bankrollMeta, inputMode, manualMatchText]);
+  }, [currentView, darkMode, manualInsiderMode, manualIntelText, bankroll, bankrollMeta, inputMode]);
 
   // ----------------------
   // Prompt generators
@@ -448,7 +306,66 @@ function App() {
     stopAnalysis?.();
   }, [stopAnalysis]);
 
-  const handleStart = useCallback(() => {
+  // Dedicated text parsing + analysis launcher with proper state management
+  const parseAndRunTextInput = useCallback(async () => {
+    const textToParse = manualMatchText.trim();
+    if (!textToParse || textToParse.length < 10) {
+      setParseError("Please enter at least 10 characters of match data.");
+      return;
+    }
+
+    setIsParsingText(true);
+    setParseError("");
+
+    try {
+      const openaiKey = apiKeys?.openai;
+      const parserModel = modelSettings?.openai || 'gpt-4.1-mini';
+      let parsedMatches;
+
+      if (openaiKey) {
+        console.log('[App] Using GPT to parse text input');
+        console.log('[App] OpenAI key:', !!openaiKey, '| Model:', parserModel);
+        try {
+          parsedMatches = await parseWithGPT(textToParse, openaiKey, parserModel);
+          console.log('[App] GPT returned', parsedMatches?.length, 'matches');
+        } catch (err) {
+          console.warn('[App] GPT parsing failed, falling back to regex:', err);
+          parsedMatches = parseManualTextInput(textToParse);
+        }
+      } else {
+        console.log('[App] Using regex parser (no OpenAI key)');
+        parsedMatches = parseManualTextInput(textToParse);
+      }
+
+      if (!parsedMatches || parsedMatches.length === 0) {
+        setParseError("Could not extract any matches from the text. Try a clearer format like: 'Real Madrid vs Barcelona 2.10 3.40 3.50'");
+        setIsParsingText(false);
+        return;
+      }
+
+      // Convert to pipeline-compatible format
+      const normalizedMatches = normalizeForPipeline(parsedMatches);
+      const syntheticGroups = normalizedMatches.map((match) => ({
+        id: match.id,
+        matchLabel: `${match.team1} vs ${match.team2}`,
+        sport: match.sport || 'soccer',
+        images: [],
+        scanResults: [match],
+        isManualInput: true,
+      }));
+
+      console.log(`[App] Starting analysis with ${syntheticGroups.length} manual matches`);
+      const manualIntel = manualInsiderMode ? manualIntelText.trim().slice(0, 5000) : "";
+      startAnalysis?.(syntheticGroups, manualIntel, bankrollMeta.n);
+    } catch (err) {
+      console.error('[App] Text parsing failed:', err);
+      setParseError(`Parsing failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsParsingText(false);
+    }
+  }, [manualMatchText, apiKeys, modelSettings, manualInsiderMode, manualIntelText, startAnalysis, bankrollMeta.n]);
+
+  const handleStart = useCallback(async () => {
     // Immediate Scroll (User Request)
     // Scroll to blackboard BEFORE analysis starts
     setTimeout(() => {
@@ -469,66 +386,25 @@ function App() {
     // Validation for text mode
     else if (inputMode === 'text') {
       if (!manualMatchText.trim()) return;
-      if (isRunning) return;
+      if (isRunning || isParsingText) return;
       if (!bankrollOk) return;
 
-      // Use DeepSeek parser if API key available, else fallback to regex
-      const deepseekKey = apiKeys?.deepseek;
-      // FORCE V3.2 for parsing speed & quality, as requested by user
-      const parserModel = 'deepseek-v3.2';
-
-      const doParse = async () => {
-        let parsedMatches;
-
-        if (deepseekKey && modelSettings?.deepseekEnabled !== false) {
-          console.log('[App] Using DeepSeek V3.2 to parse text input...');
-          try {
-            parsedMatches = await parseWithDeepSeek(manualMatchText, deepseekKey, parserModel);
-          } catch (err) {
-            console.warn('[App] DeepSeek parsing failed, falling back to regex:', err);
-            parsedMatches = parseManualTextInput(manualMatchText);
-          }
-        } else {
-          console.log('[App] Using regex parser (no DeepSeek key)');
-          parsedMatches = parseManualTextInput(manualMatchText);
-        }
-
-        if (!parsedMatches || parsedMatches.length === 0) {
-          console.error('[App] No matches parsed from manual text input');
-          setUploadError?.("Could not parse any matches from the text. Please check the format.");
-          return;
-        }
-
-        // Convert to pipeline-compatible format (synthetic image groups)
-        const normalizedMatches = normalizeForPipeline(parsedMatches);
-        const syntheticGroups = normalizedMatches.map((match) => ({
-          id: match.id,
-          matchLabel: `${match.team1} vs ${match.team2}`,
-          sport: match.sport || 'soccer',
-          images: [], // No images in text mode
-          scanResults: [match], // Pre-populate with parsed data
-          isManualInput: true,
-        }));
-
-        console.log(`[App] Starting analysis with ${syntheticGroups.length} manual matches`);
-        const manualIntel = manualInsiderMode ? manualIntelText.trim().slice(0, 5000) : "";
-        startAnalysis?.(syntheticGroups, manualIntel, bankrollMeta.n);
-      };
-
-      doParse();
+      // Parse and run — with proper loading state and error handling
+      await parseAndRunTextInput();
     }
   }, [
     inputMode,
     hasQueue,
     isScanning,
     isRunning,
+    isParsingText,
     bankrollOk,
     manualInsiderMode,
     manualIntelText,
-    manualMatchText,
     startAnalysis,
     imageGroups,
     bankrollMeta.n,
+    parseAndRunTextInput,
   ]);
 
   const handleClearQueue = useCallback(() => {
@@ -554,34 +430,35 @@ function App() {
   }, [isSettingsDirty, currentView]);
 
   // Determine if Run button should be enabled based on input mode
-  // PhD-Level Requirement: Must have at least ONE reasoning/research key to run (Perplexity OR OpenAI OR DeepSeek)
+  // PhD-Level Requirement: Must have at least ONE reasoning/research key to run (Perplexity OR OpenAI)
   const hasValidKeys = useMemo(() => {
     const k = apiKeys || {};
     // Check for valid key length (basic heuristic)
     const hasPplx = k.perplexity?.length > 10;
     const hasOpenAI = k.openai?.length > 10;
-    const hasDeepSeek = k.deepseek?.length > 10;
-    return hasPplx || hasOpenAI || hasDeepSeek;
+    return hasPplx || hasOpenAI;
   }, [apiKeys]);
 
   const canRunScreenshot = hasQueue && !isScanning && !isRunning && bankrollOk && hasValidKeys;
-  const canRunText = inputMode === 'text' && manualMatchText.trim().length > 10 && !isRunning && bankrollOk && hasValidKeys;
+  const canRunText = inputMode === 'text' && manualMatchText.trim().length > 10 && !isRunning && !isParsingText && bankrollOk && hasValidKeys;
   const canRun = inputMode === 'screenshot' ? canRunScreenshot : canRunText;
   const canStop = isRunning;
 
   // Methodology full page
   if (currentView === "methodology") {
     return (
-      <HowItWorksPage
-        onBack={() => handleViewChange("dashboard")}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-      />
+      <ErrorBoundary darkMode={darkMode}>
+        <HowItWorksPage
+          onBack={() => handleViewChange("dashboard")}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+        />
+      </ErrorBoundary>
     );
   }
 
   return (
-    <>
+    <ErrorBoundary darkMode={darkMode}>
       <DashboardLayout currentView={currentView} onViewChange={handleViewChange} darkMode={darkMode}>
         {currentView === "settings" && (
           <ConfigurationPage
@@ -590,32 +467,38 @@ function App() {
             modelSettings={modelSettings}
             setModelSettings={setModelSettings}
             darkMode={darkMode}
-            setDarkMode={setDarkMode}
             setIsDirty={setIsSettingsDirty}
           />
         )}
 
         {currentView === "dashboard" && (
           <div className="space-y-8">
-            <div className="flex flex-col lg:flex-row gap-6 items-start justify-between">
-              <HeaderSection darkMode={darkMode} />
-              <ActionBar
-                darkMode={darkMode}
-                setDarkMode={setDarkMode}
-                bankroll={bankroll}
-                setBankroll={setBankroll}
-                canRun={canRun}
-                canStop={canStop}
-                onStart={handleStart}
-                onStop={handleStop}
-                appStatus={appStatus}
-                bankrollOk={bankrollOk}
-                isScanning={isScanning}
-                isRunning={isRunning}
-                inputMode={inputMode}
-                manualMatchTextLength={manualMatchText.length}
-                hasValidKeys={hasValidKeys}
-              />
+            {/* Hero Command Bar */}
+            <div className={`mt-2 sm:mt-4 p-4 sm:p-5 rounded-3xl border backdrop-blur-sm transition-all ${
+              darkMode
+                ? 'bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 border-slate-700/40 shadow-xl shadow-black/20'
+                : 'bg-gradient-to-r from-white/90 via-white/70 to-white/90 border-slate-200/60 shadow-lg shadow-slate-200/30'
+            }`}>
+              <div className="flex flex-col lg:flex-row gap-5 items-start lg:items-center justify-between">
+                <HeaderSection darkMode={darkMode} />
+                <ActionBar
+                  darkMode={darkMode}
+                  setDarkMode={setDarkMode}
+                  bankroll={bankroll}
+                  setBankroll={setBankroll}
+                  canRun={canRun}
+                  canStop={canStop}
+                  onStart={handleStart}
+                  onStop={handleStop}
+                  appStatus={appStatus}
+                  bankrollOk={bankrollOk}
+                  isScanning={isScanning}
+                  isRunning={isRunning}
+                  inputMode={inputMode}
+                  manualMatchTextLength={manualMatchText.length}
+                  hasValidKeys={hasValidKeys}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -624,28 +507,25 @@ function App() {
                   }`}
               >
                 {/* Input Mode Toggle */}
-                <div className={`mb-4 p-4 rounded-2xl border transition-all ${darkMode ? 'bg-black/20 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'}`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Input Mode</span>
-                  </div>
-                  <div className="flex gap-2">
+                <div className={`mb-4 p-1.5 rounded-2xl border transition-all ${darkMode ? 'bg-black/30 border-slate-700/40' : 'bg-slate-100 border-slate-200'}`}>
+                  <div className="flex gap-1.5">
                     <button
                       onClick={() => setInputMode('screenshot')}
                       className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${inputMode === 'screenshot'
-                        ? (darkMode ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50' : 'bg-blue-50 text-blue-700 border border-blue-200')
-                        : (darkMode ? 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700/50' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100')
+                        ? (darkMode ? 'bg-slate-800 text-cyan-300 shadow-md' : 'bg-white text-slate-800 shadow-sm')
+                        : (darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')
                         }`}
                     >
-                      📸 Screenshot
+                      Screenshot
                     </button>
                     <button
                       onClick={() => setInputMode('text')}
                       className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${inputMode === 'text'
-                        ? (darkMode ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50' : 'bg-indigo-50 text-indigo-700 border border-indigo-200')
-                        : (darkMode ? 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700/50' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100')
+                        ? (darkMode ? 'bg-slate-800 text-indigo-300 shadow-md' : 'bg-white text-slate-800 shadow-sm')
+                        : (darkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')
                         }`}
                     >
-                      📝 Paste Text
+                      Paste Text
                     </button>
                   </div>
                 </div>
@@ -658,160 +538,105 @@ function App() {
                         Paste Match Data
                       </label>
 
-                      {/* Clear Button (User Request) */}
-                      <button
-                        onClick={() => setManualMatchText("")}
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-colors ${darkMode
-                          ? 'text-indigo-400 hover:text-indigo-200 hover:bg-indigo-500/20'
-                          : 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100'
-                          }`}
-                        title="Clear all text"
-                      >
-                        Clear
-                      </button>
+                      {/* Clear Button */}
+                      {manualMatchText.trim().length > 0 && (
+                        <button
+                          onClick={() => { setManualMatchText(""); setParseError(""); }}
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${darkMode
+                            ? 'text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 bg-rose-500/10'
+                            : 'text-rose-600 hover:text-rose-800 hover:bg-rose-100 bg-rose-50'
+                            }`}
+                          title="Clear all text"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
                     <p className={`text-[10px] mb-3 leading-relaxed ${darkMode ? 'text-indigo-200/60' : 'text-indigo-600/70'}`}>
-                      Paste formatted match data with odds. Supports markdown format with 1X2, Over/Under, and BTTS markets.
+                      Write matches in any format. GPT AI will parse team names, odds, and markets automatically.
                     </p>
                     <textarea
                       value={manualMatchText}
-                      onChange={(e) => setManualMatchText(e.target.value)}
-                      placeholder={"### 1. **Liverpool vs Manchester City** (Premier League, 17:30)\n- **1X2:** Home **2.38** | Draw **3.90** | Away **2.90**\n- **Over/Under 2.5:** Over **1.73** | Under **2.06**\n- **BTTS:** Yes **1.46** | No **2.55**\n\n### 2. **LA Lakers vs Boston Celtics** (NBA, 20:00)\n- **Spread:** Lakers -5.5 @ **1.91** | Celtics +5.5 @ **1.91**\n- **Total Points:** Over 221.5 @ **1.90** | Under 221.5 @ **1.90**\n- **Moneyline:** Lakers **1.65** | Celtics **2.25**"}
+                      onChange={(e) => { setManualMatchText(e.target.value); setParseError(""); }}
+                      placeholder={"Write matches in ANY format — GPT AI will parse them:\n\nReal Madrid vs Barcelona over 1.5 corner 2.20\nLiverpool - Man City 2.10 3.40 3.50 btts 1.70\nPSG Monaco hazai 1.80 döntetlen 3.50 vendég 4.20\nLakers vs Celtics ML 1.65\n\nOr use structured format:\n### 1. **Arsenal vs Chelsea** (PL, 17:30)\n- 1X2: 2.38 / 3.90 / 2.90"}
                       className={`w-full h-48 p-3 rounded-xl text-xs font-mono border resize-none transition-all outline-none ${darkMode
                         ? 'bg-black/30 border-indigo-500/30 text-indigo-100 placeholder-indigo-500/40 focus:border-indigo-400'
                         : 'bg-white border-indigo-200 text-indigo-900 placeholder-indigo-400/50 focus:border-indigo-400'
                         }`}
+                      disabled={isParsingText || isRunning}
                     />
 
-                    {/* Live Match Preview - Premium PhD Design */}
-                    {manualMatchText.trim() && (() => {
-                      const detectedMatches = parseManualTextInput(manualMatchText);
-                      return detectedMatches.length > 0 ? (
-                        <div className="mt-5 space-y-3">
-                          {/* Header */}
-                          <div className={`flex items-center justify-between`}>
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full animate-pulse ${darkMode ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
-                              <span className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                                {detectedMatches.length} Match{detectedMatches.length > 1 ? 'es' : ''} Detected
-                              </span>
-                            </div>
-                            <span className={`text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                              Live Preview
-                            </span>
-                          </div>
-
-                          {/* Match Cards Grid */}
-                          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
-                            {detectedMatches.map((match, i) => (
-                              <div
-                                key={i}
-                                className={`relative group rounded-xl border overflow-hidden transition-all duration-300 hover:scale-[1.01] ${darkMode
-                                  ? 'bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 border-slate-700/50 hover:border-cyan-500/30'
-                                  : 'bg-gradient-to-br from-white via-slate-50 to-white border-slate-200 hover:border-blue-300 shadow-sm'
-                                  }`}
-                              >
-                                {/* Glow Effect */}
-                                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none ${darkMode ? 'bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5' : 'bg-gradient-to-r from-blue-500/5 via-transparent to-indigo-500/5'
-                                  }`} />
-
-                                {/* Card Content */}
-                                <div className="relative p-3">
-                                  {/* Top Row: Teams + Competition Badge */}
-                                  <div className="flex items-start justify-between gap-3 mb-3">
-                                    {/* Teams Section */}
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      {/* Team 1 Initial */}
-                                      <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black ${darkMode ? 'bg-cyan-500/20 text-cyan-300' : 'bg-blue-100 text-blue-700'
-                                        }`}>
-                                        {(match.team1 || '?')[0].toUpperCase()}
-                                      </div>
-
-                                      {/* Match Info */}
-                                      <div className="flex-1 min-w-0">
-                                        <div className={`text-sm font-bold truncate ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                                          {match.team1} <span className="opacity-40 mx-0.5">vs</span> {match.team2}
-                                        </div>
-                                        <div className={`text-[10px] font-medium mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                          {match.competition || 'Unknown League'} {match.time && `• ${match.time}`}
-                                        </div>
-                                      </div>
-
-                                      {/* Team 2 Initial */}
-                                      <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black ${darkMode ? 'bg-purple-500/20 text-purple-300' : 'bg-indigo-100 text-indigo-700'
-                                        }`}>
-                                        {(match.team2 || '?')[0].toUpperCase()}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Odds Display Grid */}
-                                  <div className="grid grid-cols-3 gap-2">
-                                    {/* 1X2 Market */}
-                                    <div className={`rounded-lg p-2 text-center ${match.markets?.moneyline
-                                      ? (darkMode ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100')
-                                      : (darkMode ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-slate-50 border border-slate-200')
-                                      }`}>
-                                      <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${match.markets?.moneyline
-                                        ? (darkMode ? 'text-emerald-400' : 'text-emerald-600')
-                                        : (darkMode ? 'text-slate-500' : 'text-slate-400')
-                                        }`}>1X2</div>
-                                      {match.markets?.moneyline ? (
-                                        <div className="flex justify-center gap-1.5 text-[10px] font-mono font-bold">
-                                          <span className={darkMode ? 'text-emerald-300' : 'text-emerald-700'}>{match.homeOdds?.toFixed(2) || '—'}</span>
-                                          <span className={darkMode ? 'text-slate-400' : 'text-slate-500'}>{match.drawOdds?.toFixed(2) || '—'}</span>
-                                          <span className={darkMode ? 'text-emerald-300' : 'text-emerald-700'}>{match.awayOdds?.toFixed(2) || '—'}</span>
-                                        </div>
-                                      ) : (
-                                        <div className={`text-[10px] ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}>N/A</div>
-                                      )}
-                                    </div>
-
-                                    {/* Over/Under Market */}
-                                    <div className={`rounded-lg p-2 text-center ${match.markets?.overUnder
-                                      ? (darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100')
-                                      : (darkMode ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-slate-50 border border-slate-200')
-                                      }`}>
-                                      <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${match.markets?.overUnder
-                                        ? (darkMode ? 'text-blue-400' : 'text-blue-600')
-                                        : (darkMode ? 'text-slate-500' : 'text-slate-400')
-                                        }`}>O/U {match.overUnderLine || 2.5}</div>
-                                      {match.markets?.overUnder ? (
-                                        <div className="flex justify-center gap-2 text-[10px] font-mono font-bold">
-                                          <span className={darkMode ? 'text-blue-300' : 'text-blue-700'}>O {match.overOdds?.toFixed(2) || '—'}</span>
-                                          <span className={darkMode ? 'text-blue-300' : 'text-blue-700'}>U {match.underOdds?.toFixed(2) || '—'}</span>
-                                        </div>
-                                      ) : (
-                                        <div className={`text-[10px] ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}>N/A</div>
-                                      )}
-                                    </div>
-
-                                    {/* BTTS Market */}
-                                    <div className={`rounded-lg p-2 text-center ${match.markets?.btts
-                                      ? (darkMode ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100')
-                                      : (darkMode ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-slate-50 border border-slate-200')
-                                      }`}>
-                                      <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${match.markets?.btts
-                                        ? (darkMode ? 'text-purple-400' : 'text-purple-600')
-                                        : (darkMode ? 'text-slate-500' : 'text-slate-400')
-                                        }`}>BTTS</div>
-                                      {match.markets?.btts ? (
-                                        <div className="flex justify-center gap-2 text-[10px] font-mono font-bold">
-                                          <span className={darkMode ? 'text-purple-300' : 'text-purple-700'}>Y {match.bttsYes?.toFixed(2) || '—'}</span>
-                                          <span className={darkMode ? 'text-purple-300' : 'text-purple-700'}>N {match.bttsNo?.toFixed(2) || '—'}</span>
-                                        </div>
-                                      ) : (
-                                        <div className={`text-[10px] ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}>N/A</div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                    {/* Character count + readiness */}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className={`text-[10px] font-mono ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {manualMatchText.trim().length} chars
+                      </span>
+                      {manualMatchText.trim().length > 10 && !parseError && (
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
+                          <span className={`text-[10px] font-bold ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                            Ready to analyze
+                          </span>
                         </div>
-                      ) : null;
-                    })()}
+                      )}
+                    </div>
+
+                    {/* Parse Error */}
+                    {parseError && (
+                      <div className={`mt-3 p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${darkMode ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-50 border border-rose-200 text-rose-600'}`}>
+                        <AlertCircle size={14} />
+                        {parseError}
+                      </div>
+                    )}
+
+                    {/* ANALYZE BUTTON — Primary action for text mode */}
+                    <button
+                      type="button"
+                      onClick={parseAndRunTextInput}
+                      disabled={isParsingText || isRunning || manualMatchText.trim().length < 10 || !bankrollOk}
+                      className={`w-full mt-4 py-3.5 rounded-xl text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${isParsingText || isRunning
+                        ? (darkMode
+                          ? 'bg-indigo-900/30 text-indigo-300 border border-indigo-500/30 cursor-wait'
+                          : 'bg-indigo-100 text-indigo-500 border border-indigo-200 cursor-wait')
+                        : manualMatchText.trim().length < 10 || !bankrollOk
+                          ? (darkMode
+                            ? 'bg-slate-800/60 text-slate-600 cursor-not-allowed border border-slate-700/50'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200')
+                          : (darkMode
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-500/20 active:scale-[0.98] border border-indigo-500/30'
+                            : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white shadow-lg shadow-indigo-500/20 active:scale-[0.98] border border-indigo-400/30')
+                        }`}
+                      title={
+                        !bankrollOk ? "Set a bankroll amount first" :
+                          manualMatchText.trim().length < 10 ? "Enter at least 10 characters of match data" :
+                            isParsingText ? "GPT is parsing your text..." :
+                              isRunning ? "Analysis is running..." :
+                                "Parse text with GPT AI and start analysis"
+                      }
+                    >
+                      {isParsingText ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Parsing with GPT...
+                        </>
+                      ) : isRunning ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Play size={18} fill="currentColor" />
+                          Analyze Matches
+                        </>
+                      )}
+                    </button>
+
+                    {!bankrollOk && manualMatchText.trim().length >= 10 && (
+                      <p className={`mt-2 text-[10px] text-center font-medium ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>
+                        Set a bankroll amount above to enable analysis
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -913,7 +738,6 @@ function App() {
         {currentView === "history" && (
           <HistoryPage
             darkMode={darkMode}
-            setDarkMode={setDarkMode}
             history={history}
             onUpdateBet={handleUpdateHistoryItem}
             onDeleteMatch={handleDeleteHistoryItem}
@@ -950,7 +774,15 @@ function App() {
           </button>
         </div>
       )}
-    </>
+
+      {/* Professional Loading Screen — shown during analysis */}
+      <LoadingScreen
+        status={appStatus}
+        onCancel={handleStop}
+        darkMode={darkMode}
+        isOpen={isRunning}
+      />
+    </ErrorBoundary>
   );
 }
 

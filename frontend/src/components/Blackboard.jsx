@@ -166,7 +166,7 @@ const Blackboard = ({
             </div>
           </div>
 
-          <h3 className={["text-xl font-bold mb-2", darkMode ? "text-slate-300" : "text-slate-700"].join(" ")}>
+          <h3 className="text-xl font-black mb-2 text-primary tracking-tight">
             System Standby
           </h3>
 
@@ -242,7 +242,7 @@ const Blackboard = ({
             </div>
 
             <div>
-              <div className={["text-lg font-bold tracking-tight flex items-center gap-2", darkMode ? "text-white" : "text-slate-900"].join(" ")}>
+              <div className="text-lg font-black tracking-tight flex items-center gap-2 text-primary">
                 PhD Betting Intelligence Pipeline
                 {isRunning && (
                   <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 animate-pulse">
@@ -258,7 +258,7 @@ const Blackboard = ({
 
               <div className="flex flex-col mt-1">
                 <div className="flex items-center gap-2">
-                  <span className={["text-xs font-mono uppercase tracking-wider", darkMode ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                  <span className="text-xs font-mono uppercase tracking-wider text-secondary">
                     {completedCount}/{ALL_AGENTS.length} modules completed
                   </span>
 

@@ -1,8 +1,9 @@
 /**
- * PhD Betting Engine - Probability Module (Production Hardened)
- * - Implied probability from decimal odds
- * - Normalization of probabilities (Overround removal)
- * - Robust parsing for %, decimals, and numeric strings
+ * PhD Betting Engine - Probability Module
+ * 
+ * Provides rigorous mathematical utilities for handling betting probabilities,
+ * including overround removal, implied probability calculation, and robust parsing
+ * of heterogeneous probability representations.
  */
 
 const EPS = 1e-12;
@@ -22,11 +23,14 @@ export const calcImpliedProb = (odds) => {
 };
 
 /**
- * Normalizes an array of probabilities so they sum to 1.0.
- * - Filters invalid values to 0
- * - Clamps negatives to 0
- * @param {Array<number|string>} probs
- * @returns {number[]} Normalized probabilities summing to 1.0 (or all zeros if sum=0)
+ * Normalizes an array of probabilities so they sum to 1.0 (Unit Simplex).
+ * 
+ * This is frequently used for "overround removal" in betting markets, 
+ * mapping bookmaker implied probabilities back to a true theoretical probability 
+ * distribution where \sum P_i = 1.
+ * 
+ * @param {Array<number|string>} probs - Array of raw probabilities or implied percentages.
+ * @returns {number[]} Normalized probabilities summing to 1.0. Returns zeros if the sum is below EPS.
  */
 export const normalizeProbs = (probs) => {
   const arr = Array.isArray(probs) ? probs : [];

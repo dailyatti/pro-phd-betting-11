@@ -27,9 +27,9 @@ export const TaskType = Object.freeze({
  */
 const MODEL_PRIORITY = Object.freeze({
     [TaskType.VISION]: ['openai', 'gemini'],
-    [TaskType.RESEARCH]: ['perplexity', 'deepseek', 'openai'],
-    [TaskType.REASONING]: ['deepseek', 'openai'],
-    [TaskType.SYNTHESIS]: ['openai', 'deepseek'],
+    [TaskType.RESEARCH]: ['perplexity', 'openai'],
+    [TaskType.REASONING]: ['openai'],
+    [TaskType.SYNTHESIS]: ['openai'],
 });
 
 // ============================================================================
@@ -43,7 +43,7 @@ export class APIManager {
     /**
      * @param {Object} config - API configuration
      * @param {Object} config.openai - {apiKey, model, enabled}
-     * @param {Object} config.deepseek - {apiKey, model, enabled}
+     * @param {Object} config.gemini - {apiKey, model, enabled}
      * @param {Object} config.perplexity - {apiKey, model}
      * @param {Object} config.gemini - {apiKey, model, enabled}
      */
@@ -70,12 +70,6 @@ export class APIManager {
         return this._hasValidKey(cfg.apiKey);
     }
 
-    hasDeepSeek() {
-        const cfg = this.config.deepseek || {};
-        // DeepSeek requires explicit 'enabled' flag AND valid key
-        return cfg.enabled === true && this._hasValidKey(cfg.apiKey);
-    }
-
     hasPerplexity() {
         const cfg = this.config.perplexity || {};
         return this._hasValidKey(cfg.apiKey);
@@ -95,15 +89,15 @@ export class APIManager {
     }
 
     canDoResearch() {
-        return this.hasPerplexity() || this.hasDeepSeek() || this.hasOpenAI();
+        return this.hasPerplexity() || this.hasOpenAI();
     }
 
     canDoReasoning() {
-        return this.hasDeepSeek() || this.hasOpenAI();
+        return this.hasOpenAI();
     }
 
     canDoSynthesis() {
-        return this.hasOpenAI() || this.hasDeepSeek();
+        return this.hasOpenAI();
     }
 
     // ========================================================================
@@ -146,12 +140,6 @@ export class APIManager {
                     return { provider: 'openai', apiKey: cfg.apiKey, model: cfg.model || 'gpt-5.2' };
                 }
                 break;
-            case 'deepseek':
-                if (this.hasDeepSeek()) {
-                    const cfg = this.config.deepseek;
-                    return { provider: 'deepseek', apiKey: cfg.apiKey, model: cfg.model || 'deepseek-reasoner' };
-                }
-                break;
             case 'perplexity':
                 if (this.hasPerplexity()) {
                     const cfg = this.config.perplexity;
@@ -189,7 +177,6 @@ export class APIManager {
         return {
             apis: {
                 openai: this.hasOpenAI(),
-                deepseek: this.hasDeepSeek(),
                 perplexity: this.hasPerplexity(),
                 gemini: this.hasGemini(),
             },
@@ -220,24 +207,18 @@ export class APIManager {
  * Create an APIManager from the standard orchestrator params
  * @param {Object} openaiParams - {apiKey, orchestratorModel, finalModel}
  * @param {Object} perplexityParams - {apiKey, model}
- * @param {Object} deepseekParams - {apiKey, model, enabled}
  * @param {Object} geminiParams - {apiKey, model, enabled}
  * @returns {APIManager}
  */
-export function createAPIManager(openaiParams, perplexityParams, deepseekParams, geminiParams) {
+export function createAPIManager(openaiParams, perplexityParams, geminiParams) {
     return new APIManager({
         openai: {
             apiKey: openaiParams?.apiKey,
-            model: openaiParams?.orchestratorModel || openaiParams?.finalModel,
+            model: openaiParams?.orchestratorModel || openaiParams?.finalModel || openaiParams?.model,
         },
         perplexity: {
             apiKey: perplexityParams?.apiKey,
             model: perplexityParams?.model,
-        },
-        deepseek: {
-            apiKey: deepseekParams?.apiKey,
-            model: deepseekParams?.model,
-            enabled: deepseekParams?.enabled ?? false,
         },
         gemini: {
             apiKey: geminiParams?.apiKey,

@@ -103,7 +103,7 @@ const MatchHeader = ({ label, sport, darkMode }) => {
             ID: {id}
           </span>
         </div>
-        <h2 className={clsx("text-xl font-bold tracking-tight", darkMode ? "text-white" : "text-slate-900")}>{label}</h2>
+        <h2 className={clsx("text-xl font-bold tracking-tight", "text-primary")}>{label}</h2>
       </div>
 
       <div
@@ -240,7 +240,7 @@ const SingleStrategyBlock = ({ data, darkMode }) => {
                   <span className={clsx("text-xs font-bold uppercase tracking-wider", darkMode ? "text-slate-400" : "text-slate-500")}>
                     Confidence Level
                   </span>
-                  <span className={clsx("text-base font-bold", darkMode ? "text-white" : "text-slate-900")}>
+                  <span className={clsx("text-base font-bold", "text-primary")}>
                     {data.risk_assessment.confidence_level}
                   </span>
                 </div>
@@ -375,7 +375,7 @@ const RecommendationCard = ({ rec, darkMode }) => {
             {isAvoid && <BadgeLabel label="AVOID / TRAP" color="red" darkMode={darkMode} />}
           </div>
 
-          <h3 className={clsx("text-xl font-bold tracking-tight break-words", darkMode ? "text-white" : "text-slate-900")}>
+          <h3 className={clsx("text-xl font-bold tracking-tight break-words", "text-primary")}>
             {safeText(rec?.selection, "Selection Name")}
           </h3>
 
@@ -394,7 +394,7 @@ const RecommendationCard = ({ rec, darkMode }) => {
                 <Activity size={10} strokeWidth={3} />
                 <span>Bookie</span>
               </div>
-              <div className={clsx("text-xl font-mono font-bold leading-none tracking-tight", darkMode ? "text-white" : "text-slate-900")}>
+              <div className={clsx("text-xl font-mono font-bold leading-none tracking-tight", "text-primary")}>
                 {rec?.source_odds != null ? (toNumber(rec.source_odds) ?? 0).toFixed(2) : odds && odds > 0 ? odds.toFixed(2) : "—"}
               </div>
             </div>
@@ -753,7 +753,7 @@ const PortfolioSummary = ({ strategies, darkMode, onAddToHistory, bankroll }) =>
             <ShieldCheck size={20} />
           </div>
           <div>
-            <h3 className={clsx("text-base font-bold tracking-tight uppercase leading-none", darkMode ? "text-white" : "text-slate-900")}>
+            <h3 className={clsx("text-base font-bold tracking-tight uppercase leading-none", "text-primary")}>
               Capital Allocation
             </h3>
             <p className={clsx("text-[10px] font-medium mt-1 uppercase tracking-wider opacity-70", darkMode ? "text-slate-400" : "text-stone-500")}>

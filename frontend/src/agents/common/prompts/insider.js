@@ -226,7 +226,7 @@ FIND HIGH-LEVERAGE INTEL ("DIRTY LAUNDRY" BUT EVIDENCE-FIRST):
 - Travel + fatigue: late arrival, schedule congestion, rotation expectations
 
 CITE SOURCES for everything (handle/thread/forum + timestamp).
-IMPORTANT: This role is to find "DIRTY LAUNDRY" (plecskák/szaftos hírek).
+IMPORTANT: This role is to find "DIRTY LAUNDRY" (scandals, juicy insider info).
 - If it's just a tactical tweak, ignore it.
 - If it's a manager sacking, a fight, a scandal, or a "leaked" crisis -> REPORT IT.
 - MARK EV IMPACT AS LOW (Flavor/Context only) unless it is a confirmed key player absence.

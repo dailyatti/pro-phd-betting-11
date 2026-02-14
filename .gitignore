@@ -44,3 +44,6 @@ temp_skills_repo_debug/
 .claude/
 .agent/
 test_openai*.js
+
+# Duplicate config (root netlify.toml is the real one)
+frontend/netlify.toml

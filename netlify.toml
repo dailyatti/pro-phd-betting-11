@@ -8,39 +8,12 @@
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
 
-# API redirects MUST come before SPA fallback (Netlify uses first match)
-[[redirects]]
-  from = "/api/openai/*"
-  to = "/.netlify/functions/openai"
-  status = 200
-  force = true
+# NO API redirects needed — Functions v2 uses `export const config = { path }` for routing.
+# Adding redirects here CONFLICTS with v2 function path routing and causes 404s.
 
-[[redirects]]
-  from = "/api/perplexity/*"
-  to = "/.netlify/functions/perplexity"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/deepseek/*"
-  to = "/.netlify/functions/deepseek"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/gemini/*"
-  to = "/.netlify/functions/gemini"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/grok/*"
-  to = "/.netlify/functions/grok"
-  status = 200
-  force = true
-
-# SPA fallback - LAST (must be after API routes)
+# SPA fallback — only for non-API, non-function routes
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -43,3 +43,4 @@ temp_skills_repo_debug/
 # Claude / Agent
 .claude/
 .agent/
+test_openai*.js

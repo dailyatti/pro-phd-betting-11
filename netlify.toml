@@ -4,10 +4,10 @@
 [build]
   base = "frontend/"
   command = "npm install && npm run build"
-  publish = "frontend/dist"
+  publish = "dist"
 
 [functions]
-  directory = "frontend/netlify/functions"
+  directory = "netlify/functions"
 
 # API redirects MUST come before SPA fallback (Netlify uses first match)
 [[redirects]]

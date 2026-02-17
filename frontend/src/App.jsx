@@ -378,7 +378,7 @@ function App() {
       if (!hasQueue) return;
       if (isScanning) return;
       if (isRunning) return;
-      if (!bankrollOk) return;
+      // Bankroll is optional now
 
       const manualIntel = manualInsiderMode ? manualIntelText.trim().slice(0, 5000) : "";
       startAnalysis?.(imageGroups, manualIntel, bankrollMeta.n);
@@ -387,7 +387,6 @@ function App() {
     else if (inputMode === 'text') {
       if (!manualMatchText.trim()) return;
       if (isRunning || isParsingText) return;
-      if (!bankrollOk) return;
 
       // Parse and run — with proper loading state and error handling
       await parseAndRunTextInput();
@@ -439,8 +438,8 @@ function App() {
     return hasPplx || hasOpenAI;
   }, [apiKeys]);
 
-  const canRunScreenshot = hasQueue && !isScanning && !isRunning && bankrollOk && hasValidKeys;
-  const canRunText = inputMode === 'text' && manualMatchText.trim().length > 10 && !isRunning && !isParsingText && bankrollOk && hasValidKeys;
+  const canRunScreenshot = hasQueue && !isScanning && !isRunning && hasValidKeys;
+  const canRunText = inputMode === 'text' && manualMatchText.trim().length > 10 && !isRunning && !isParsingText && hasValidKeys;
   const canRun = inputMode === 'screenshot' ? canRunScreenshot : canRunText;
   const canStop = isRunning;
 
@@ -474,11 +473,10 @@ function App() {
         {currentView === "dashboard" && (
           <div className="space-y-8">
             {/* Hero Command Bar */}
-            <div className={`mt-2 sm:mt-4 p-4 sm:p-5 rounded-3xl border backdrop-blur-sm transition-all ${
-              darkMode
-                ? 'bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 border-slate-700/40 shadow-xl shadow-black/20'
-                : 'bg-gradient-to-r from-white/90 via-white/70 to-white/90 border-slate-200/60 shadow-lg shadow-slate-200/30'
-            }`}>
+            <div className={`mt-2 sm:mt-4 p-4 sm:p-5 rounded-3xl border backdrop-blur-sm transition-all ${darkMode
+              ? 'bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 border-slate-700/40 shadow-xl shadow-black/20'
+              : 'bg-gradient-to-r from-white/90 via-white/70 to-white/90 border-slate-200/60 shadow-lg shadow-slate-200/30'
+              }`}>
               <div className="flex flex-col lg:flex-row gap-5 items-start lg:items-center justify-between">
                 <HeaderSection darkMode={darkMode} />
                 <ActionBar
@@ -593,7 +591,7 @@ function App() {
                     <button
                       type="button"
                       onClick={parseAndRunTextInput}
-                      disabled={isParsingText || isRunning || manualMatchText.trim().length < 10 || !bankrollOk}
+                      disabled={isParsingText || isRunning || manualMatchText.trim().length < 10}
                       className={`w-full mt-4 py-3.5 rounded-xl text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${isParsingText || isRunning
                         ? (darkMode
                           ? 'bg-indigo-900/30 text-indigo-300 border border-indigo-500/30 cursor-wait'
@@ -632,11 +630,7 @@ function App() {
                       )}
                     </button>
 
-                    {!bankrollOk && manualMatchText.trim().length >= 10 && (
-                      <p className={`mt-2 text-[10px] text-center font-medium ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>
-                        Set a bankroll amount above to enable analysis
-                      </p>
-                    )}
+                    {/* Bankroll warning removed - optional now */}
                   </div>
                 )}
 

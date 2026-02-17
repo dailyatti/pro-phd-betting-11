@@ -71,10 +71,10 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
         const isSimulation = !apiKeys.openai;
         console.log(isSimulation ? '--- SIMULATION MODE ACTIVE ---' : '--- LIVE AGENT MODE ---');
 
-        const bankrollValue = bankroll === '' ? null : Number(bankroll);
-        if (bankroll !== '' && !Number.isFinite(bankrollValue)) {
-            setError('Invalid bankroll value. Please enter a valid number.');
-            return;
+        const bankrollValue = (bankroll === '' || bankroll === null || bankroll === undefined) ? 300 : Number(bankroll);
+        if (Number.isNaN(bankrollValue)) {
+            // Fallback if parsing failed somehow despite check
+            console.warn("Invalid bankroll, defaulting to 300");
         }
 
         // 2. Initialization
@@ -392,6 +392,11 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                         perplexityParams: apiKeys.perplexity ? {
                             apiKey: apiKeys.perplexity,
                             model: modelSettings.perplexity
+                        } : null,
+                        geminiParams: apiKeys.gemini ? {
+                            apiKey: apiKeys.gemini,
+                            model: modelSettings.gemini,
+                            enabled: true // Explicitly enable if key is present
                         } : null,
                         manualIntel: manualIntel,
                         bankroll: bankrollValue,

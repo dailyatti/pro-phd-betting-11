@@ -12,6 +12,72 @@ import { tryParseJson, safeStringify, isAbortError, retryAsync } from '../common
 import { getPerplexityPrompt } from '../common/prompts/perplexity.js';
 
 // ============================================================================
+// GEMINI SEARCH HELPERS
+// ============================================================================
+
+/**
+ * Normalizes Gemini Grounding response
+ */
+const normalizeGeminiResponse = (res, query) => {
+  // Gemini 2.0 returns candidates[0].content.parts[0].text
+  // Grounding metadata is in candidates[0].groundingMetadata
+  const candidate = res?.data?.candidates?.[0];
+  if (!candidate) return { raw_content: "Gemini Error: No candidates returned.", data_gaps: ["No response"] };
+
+  const textPart = candidate.content?.parts?.find(p => p.text)?.text || "";
+  const grounding = candidate.groundingMetadata;
+
+  // Extract chunks or web search results if available
+  const chunks = grounding?.groundingChunks?.map(c => c.web?.uri ? `[${c.web.title}](${c.web.uri})` : null).filter(Boolean) || [];
+
+  // Attempt to parse JSON if the text part contains json block
+  const jsonMatch = textPart.match(/```json\n([\s\S]*?)\n```/) || [null, textPart];
+  const parsed = tryParseJson(jsonMatch[1] || textPart);
+
+  if (parsed && typeof parsed === 'object') {
+    return {
+      ...parsed,
+      ppx_citations: chunks, // Map to same field for compatibility
+      raw_content: textPart,
+      source_engine: "GEMINI_SEARCH"
+    };
+  }
+
+  return {
+    raw_content: textPart,
+    ppx_citations: chunks,
+    quality_warning: "Gemini response was unstructured.",
+    data_gaps: ["Unstructured response"],
+    source_engine: "GEMINI_SEARCH"
+  };
+};
+
+/**
+ * Runs Gemini with Google Search Grounding
+ */
+const runGeminiResearch = async (config, query, signal) => {
+  const apiKey = typeof config === 'string' ? config : config?.key;
+  const model = typeof config === 'string' ? 'gemini-2.0-flash' : (config?.model || 'gemini-2.0-flash');
+
+  console.log(`[Fact Checker] Fetching data with Gemini Grounding (${model})...`);
+
+  const payload = {
+    contents: [{ parts: [{ text: query }] }],
+    tools: [{ google_search_retrieval: { dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 } } }],
+    generationConfig: { response_mime_type: "application/json" } // Force JSON
+  };
+
+  return await retryAsync(async () => {
+    // Direct call to Netlify proxy which handles the googleapis.com routing
+    const res = await axios.post(`/api/gemini/models/${model}:generateContent?key=${apiKey}`, payload, {
+      headers: { 'Content-Type': 'application/json' },
+      signal
+    });
+    return normalizeGeminiResponse(res, query);
+  }, [], 2);
+};
+
+// ============================================================================
 // PROMPTS
 // ============================================================================
 
@@ -94,16 +160,16 @@ OUTPUT JSON ONLY:
  * @returns {string} Single match prompt
  */
 const getSingleMatchPrompt = (sport, matchData) => {
-    const sportPrompt = getPerplexityPrompt(sport, matchData);
-    const kickoffTime = matchData.time || matchData.kickoff_time || matchData.kickoff_time?.raw || 'Unknown';
-    const kickoffDate = matchData.date || matchData.kickoff_date || matchData.kickoff_date?.iso || matchData.kickoff_date?.raw || 'Unknown';
-    const tournament = matchData.tournament || matchData.tournament?.raw || 'Unknown';
+  const sportPrompt = getPerplexityPrompt(sport, matchData);
+  const kickoffTime = matchData.time || matchData.kickoff_time || matchData.kickoff_time?.raw || 'Unknown';
+  const kickoffDate = matchData.date || matchData.kickoff_date || matchData.kickoff_date?.iso || matchData.kickoff_date?.raw || 'Unknown';
+  const tournament = matchData.tournament || matchData.tournament?.raw || 'Unknown';
 
-    const visionQueries = matchData.perplexity_search_instructions?.fact_checker_queries || [];
-    const mathQueries = matchData.perplexity_search_instructions?.mathematical_data_queries || [];
-    const criticalData = matchData.perplexity_search_instructions?.critical_data_needed || [];
+  const visionQueries = matchData.perplexity_search_instructions?.fact_checker_queries || [];
+  const mathQueries = matchData.perplexity_search_instructions?.mathematical_data_queries || [];
+  const criticalData = matchData.perplexity_search_instructions?.critical_data_needed || [];
 
-    const visionSection = visionQueries.length > 0 ? `
+  const visionSection = visionQueries.length > 0 ? `
 ══════════════════════════════════════════════════════════════════════════════
 🔬 VISION SCRAPER GENERATED QUERIES (EXECUTE THESE FIRST):
 ══════════════════════════════════════════════════════════════════════════════
@@ -116,7 +182,7 @@ CRITICAL DATA NEEDED FOR PROBABILITY CALCULATION:
 ${criticalData.map(d => `• ${d}`).join('\n')}
 ` : '';
 
-    return `
+  return `
 ${sportPrompt}
 
 ══════════════════════════════════════════════════════════════════════════════
@@ -211,24 +277,24 @@ OUTPUT JSON ONLY:
  * @returns {Object} Normalized response
  */
 const normalizePerplexityResponse = (res) => {
-    const content = res?.data?.choices?.[0]?.message?.content ?? '';
-    const citations = res?.data?.citations || [];
-    const parsed = tryParseJson(content);
+  const content = res?.data?.choices?.[0]?.message?.content ?? '';
+  const citations = res?.data?.citations || [];
+  const parsed = tryParseJson(content);
 
-    if (parsed && typeof parsed === 'object') {
-        return {
-            ...parsed,
-            ppx_citations: citations,
-            raw_content: content
-        };
-    }
-
+  if (parsed && typeof parsed === 'object') {
     return {
-        raw_content: content,
-        ppx_citations: citations,
-        quality_warning: "Perplexity response was unstructured or not valid JSON.",
-        data_gaps: ["Unstructured response; could not parse JSON reliably."]
+      ...parsed,
+      ppx_citations: citations,
+      raw_content: content
     };
+  }
+
+  return {
+    raw_content: content,
+    ppx_citations: citations,
+    quality_warning: "Perplexity response was unstructured or not valid JSON.",
+    data_gaps: ["Unstructured response; could not parse JSON reliably."]
+  };
 };
 
 // ============================================================================
@@ -243,58 +309,71 @@ const normalizePerplexityResponse = (res) => {
  * @returns {Promise<Object>} Fact check results
  */
 export const runFactChecker = async (config, matchData, signal) => {
-    const apiKey = typeof config === 'string' ? config : config?.key;
-    const model = typeof config === 'string' ? 'sonar-pro' : (config?.model || 'sonar-pro');
+  const apiKey = typeof config === 'string' ? config : config?.key;
+  const provider = config?.provider || 'perplexity'; // Default to perplexity
+  const model = typeof config === 'string' ? 'sonar-pro' : (config?.model || 'sonar-pro');
 
-    if (!apiKey) throw new Error("Perplexity API Key is missing.");
-    console.log(`[Fact Checker] Fetching data with Perplexity ${model}...`);
+  if (!apiKey) throw new Error(`${provider.toUpperCase()} API Key is missing.`);
 
-    const sport = matchData.sport || 'FOOTBALL';
-    const isList = matchData.mode === 'LIST';
-    const isPlayerProps = matchData.market_type === 'PLAYER_PROPS';
+  const sport = matchData.sport || 'FOOTBALL';
+  const isList = matchData.mode === 'LIST';
+  const isPlayerProps = matchData.market_type === 'PLAYER_PROPS';
 
-    // Build query based on mode
-    let query;
-    if (isPlayerProps) {
-        query = getPlayerPropsPrompt(sport, matchData);
-    } else if (isList) {
-        query = getListModePrompt(sport, matchData);
-    } else {
-        query = getSingleMatchPrompt(sport, matchData);
-    }
+  // Build query based on mode
+  let query;
+  if (isPlayerProps) {
+    query = getPlayerPropsPrompt(sport, matchData);
+  } else if (isList) {
+    query = getListModePrompt(sport, matchData);
+  } else {
+    query = getSingleMatchPrompt(sport, matchData);
+  }
 
-    const payload = { model: model, messages: [{ role: "user", content: query }] };
-
+  // --- GEMINI BRANCH ---
+  if (provider === 'gemini') {
     try {
-        return await retryAsync(async () => {
-            const res = await axios.post('/api/perplexity/chat/completions', payload, {
-                headers: { 'Authorization': `Bearer ${apiKey}` },
-                signal
-            });
-            return normalizePerplexityResponse(res);
-        }, [], 2);
-
+      return await runGeminiResearch(config, query, signal);
     } catch (e) {
-        if (isAbortError(e, signal)) {
-            throw new DOMException('Aborted', 'AbortError');
-        }
-
-        // AUTO-HEALING: If request failed and we weren't already using sonar-pro, try fallback
-        if (model !== 'sonar-pro') {
-            console.warn(`[Fact Checker] Model ${model} failed. Auto-healing with sonar-pro...`);
-            try {
-                const fallbackPayload = { ...payload, model: 'sonar-pro' };
-                const res = await axios.post('/api/perplexity/chat/completions', fallbackPayload, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` },
-                    signal
-                });
-
-                return normalizePerplexityResponse(res);
-            } catch (retryError) {
-                throw new Error(`Fact Checker Failed (Auto-heal attempt failed): ${retryError.message}`);
-            }
-        }
-
-        throw new Error(`Fact Checker Failed: ${e.message}`);
+      if (isAbortError(e, signal)) throw new DOMException('Aborted', 'AbortError');
+      throw new Error(`Gemini Research Failed: ${e.message}`);
     }
+  }
+
+  // --- PERPLEXITY BRANCH (Legacy) ---
+  console.log(`[Fact Checker] Fetching data with Perplexity ${model}...`);
+
+  const payload = { model: model, messages: [{ role: "user", content: query }] };
+
+  try {
+    return await retryAsync(async () => {
+      const res = await axios.post('/api/perplexity/chat/completions', payload, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal
+      });
+      return normalizePerplexityResponse(res);
+    }, [], 2);
+
+  } catch (e) {
+    if (isAbortError(e, signal)) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    // AUTO-HEALING: If request failed and we weren't already using sonar-pro, try fallback
+    if (model !== 'sonar-pro') {
+      console.warn(`[Fact Checker] Model ${model} failed. Auto-healing with sonar-pro...`);
+      try {
+        const fallbackPayload = { ...payload, model: 'sonar-pro' };
+        const res = await axios.post('/api/perplexity/chat/completions', fallbackPayload, {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+          signal
+        });
+
+        return normalizePerplexityResponse(res);
+      } catch (retryError) {
+        throw new Error(`Fact Checker Failed (Auto-heal attempt failed): ${retryError.message}`);
+      }
+    }
+
+    throw new Error(`Fact Checker Failed: ${e.message}`);
+  }
 };

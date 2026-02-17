@@ -27,7 +27,7 @@ export const TaskType = Object.freeze({
  */
 const MODEL_PRIORITY = Object.freeze({
     [TaskType.VISION]: ['openai', 'gemini'],
-    [TaskType.RESEARCH]: ['perplexity', 'openai'],
+    [TaskType.RESEARCH]: ['perplexity', 'gemini', 'openai'],
     [TaskType.REASONING]: ['openai'],
     [TaskType.SYNTHESIS]: ['openai'],
 });
@@ -89,7 +89,7 @@ export class APIManager {
     }
 
     canDoResearch() {
-        return this.hasPerplexity() || this.hasOpenAI();
+        return this.hasPerplexity() || this.hasGemini() || this.hasOpenAI();
     }
 
     canDoReasoning() {

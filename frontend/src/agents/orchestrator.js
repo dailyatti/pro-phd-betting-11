@@ -711,9 +711,11 @@ async function callOpenAI({ apiKey, model, system, user, jsonMode, maxTokens, si
 /**
  * Unified Research Caller: Perplexity (primary), OpenAI fallback
  */
-async function performResearch({ perplexityParams, openaiParams, query, matchContext, signal }) {
+async function performResearch({ perplexityParams, openaiParams, geminiParams, query, matchContext, signal }) {
     const { apiKey: pplxKey, model: pplxModel } = perplexityParams || {};
     const { apiKey: openAIKey, orchestratorModel, model: openaiModelAlt } = openaiParams || {};
+    const { apiKey: geminiKey, model: geminiModel, enabled: geminiEnabled } = geminiParams || {};
+
     const resolvedOpenAIModel = orchestratorModel || openaiModelAlt || 'gpt-4.1';
 
     // Build match context string for system prompts
@@ -747,14 +749,32 @@ async function performResearch({ perplexityParams, openaiParams, query, matchCon
             }, [], 2);
         } catch (err) {
             console.warn("[Orchestrator] Perplexity FAILED:", err.message);
-            if (err.response) {
-                console.error("[Orchestrator] Perplexity HTTP Status:", err.response.status, "Data:", JSON.stringify(err.response.data).slice(0, 300));
+            // Fallthrough to Gemini
+        }
+    }
+
+    // 2. Try Gemini (Secondary) if Perplexity failed or missing
+    if (geminiEnabled && hasValidKey(geminiKey)) {
+        try {
+            const { runFactChecker } = await import("./research/factChecker.js");
+            const factRes = await runFactChecker({
+                provider: 'gemini',
+                key: geminiKey,
+                model: geminiModel
+            }, { ...matchContext, sport: matchContext?.sport || 'FOOTBALL' }, signal); // Minimal match data for query gen
+
+            if (factRes?.raw_content) {
+                console.log(`[Orchestrator] Gemini Search Result (${factRes.raw_content.length} chars)`);
+                const citations = (factRes.ppx_citations || []).join('\n');
+                return `[SOURCE: GEMINI_SEARCH]\n${factRes.raw_content}\n\nSOURCES:\n${citations}`;
             }
+        } catch (err) {
+            console.warn("[Orchestrator] Gemini Search FAILED:", err.message);
             // Fallthrough to OpenAI
         }
     }
 
-    // 2. Fallback to OpenAI
+    // 3. Fallback to OpenAI
     if (hasValidKey(openAIKey)) {
         console.log("[Orchestrator] Using GPT for Research (Fallback - Offline Mode)");
         return `[SOURCE: OPENAI_INTERNAL_KNOWLEDGE]\n${await callOpenAI({
@@ -768,7 +788,7 @@ async function performResearch({ perplexityParams, openaiParams, query, matchCon
         })}`;
     }
 
-    // 3. No API available
+    // 4. No API available
     console.error("[Orchestrator] No research API available (all keys missing)");
     return `[ERROR] Research unavailable: No API keys configured. Query was: "${query}"`;
 }

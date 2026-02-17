@@ -34,6 +34,9 @@ export default async (req, context) => {
 
     const config = API_CONFIG[providerKey];
     const targetPath = path.replace(config.strip, "");
+
+    // Gemini sometimes needs query params for API key, sometimes in header. 
+    // We pass the full search including ?key=... from the client.
     const targetUrl = `${config.target}${targetPath}${url.search}`;
 
     try {

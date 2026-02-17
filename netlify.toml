@@ -2,9 +2,9 @@
 # BYOK (Bring Your Own Key) - Users provide their own API keys via the UI
 
 [build]
-  base = "frontend/"
-  command = "npm install && npm run build"
-  publish = "dist"
+  # Explicitly cd into frontend, install deps, and build
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/dist"
 
 [functions]
   directory = "netlify/functions"

@@ -2,12 +2,11 @@
 # BYOK (Bring Your Own Key) - Users provide their own API keys via the UI
 
 [build]
-  base = "frontend/"
-  command = "npm install && npm run build"
-  publish = "dist"
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/dist"
 
 [functions]
-  directory = "../netlify/functions"
+  directory = "netlify/functions"
   node_bundler = "esbuild"
 
 # NO API redirects needed — Functions v2 uses `export const config = { path }` for routing.

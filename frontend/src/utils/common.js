@@ -116,3 +116,5 @@ export const safeParse = (str, fallback) => {
         return fallback;
     }
 };
+
+// Force Netlify Re-deploy: 2026-02-17 19:05

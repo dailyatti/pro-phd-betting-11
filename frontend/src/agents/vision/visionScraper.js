@@ -243,65 +243,127 @@ const normalizeVisionOutput = (parsed) => {
  * @returns {Promise<object>} Normalized match data.
  */
 export const runVisionScraper = async (config, imageBase64, signal, contextHint = null) => {
-    const openaiKey = typeof config === "string" ? config : config?.key;
-    const openaiModel = typeof config === "object" && config.model ? config.model : "gpt-4o";
+    // 1. Determine Provider
+    let provider = 'openai';
+    let apiKey = '';
+    let model = '';
 
-    if (!openaiKey) throw new Error("OpenAI API Key is missing. Please check Settings.");
+    if (typeof config === "string") {
+        apiKey = config;
+        model = "gpt-4o";
+    } else {
+        if (config.provider === 'gemini') {
+            provider = 'gemini';
+            apiKey = config.key;
+            model = config.model || "gemini-2.0-flash";
+        } else {
+            provider = 'openai';
+            apiKey = config.key;
+            model = config.model || "gpt-4o";
+        }
+    }
+
+    if (!apiKey) throw new Error(`${provider.toUpperCase()} API Key is missing. Please check Settings.`);
 
     const visionPrompt = getVisionPrompt(contextHint);
     const images = Array.isArray(imageBase64) ? imageBase64 : [imageBase64];
 
-    const messageContent = [
-        { type: "text", text: visionPrompt },
-        ...images.filter(Boolean).map((img, idx) => {
-            const url = normalizeImageToVisionUrl(img, idx);
-
-            if (isDataImageUrl(url)) {
-                const b64 = url.split(",")[1] || "";
-                const bytes = estimateBase64Bytes(b64);
-                if (bytes < 50_000) {
-                    console.warn(`[Vision WARNING] Image ${idx} seems very small (${bytes} bytes).`);
-                }
-            }
-
-            return {
-                type: "image_url",
-                image_url: {
-                    url,
-                    detail: "high",
-                },
-            };
-        }),
-    ];
-
-    const systemMessage = "You are a Ph.D. level sports betting analyst. Extract data exactly as requested.";
-
-    const payload = {
-        model: openaiModel,
-        messages: [
-            { role: "system", content: systemMessage },
-            { role: "user", content: messageContent },
-        ],
-        max_completion_tokens: 4000,
-        response_format: { type: "json_object" },
-    };
+    // Filter valid images
+    const validImages = images.filter(Boolean);
+    if (!validImages.length) throw new Error("No valid images provided for vision analysis.");
 
     try {
-        const res = await axios.post("/api/openai/chat/completions", payload, {
-            headers: { Authorization: `Bearer ${openaiKey}` },
-            signal,
-        });
+        let content = "";
 
-        const content = res.data?.choices?.[0]?.message?.content;
-        if (!content) throw new Error("Empty response from OpenAI Vision.");
+        if (provider === 'openai') {
+            const messageContent = [
+                { type: "text", text: visionPrompt },
+                ...validImages.map((img, idx) => {
+                    const url = normalizeImageToVisionUrl(img, idx);
+                    if (isDataImageUrl(url)) {
+                        const b64 = url.split(",")[1] || "";
+                        const bytes = estimateBase64Bytes(b64);
+                        if (bytes < 50_000) {
+                            console.warn(`[Vision WARNING] Image ${idx} seems very small (${bytes} bytes).`);
+                        }
+                    }
+                    return {
+                        type: "image_url",
+                        image_url: { url, detail: "high" },
+                    };
+                }),
+            ];
+            const systemMessage = "You are a Ph.D. level sports betting analyst. Extract data exactly as requested.";
 
-        const parsed = JSON.parse(content);
+            const payload = {
+                model,
+                messages: [
+                    { role: "system", content: systemMessage },
+                    { role: "user", content: messageContent },
+                ],
+                max_completion_tokens: 4000,
+                response_format: { type: "json_object" },
+            };
+
+            const res = await axios.post("/api/openai/chat/completions", payload, {
+                headers: { Authorization: `Bearer ${apiKey}` },
+                signal,
+            });
+            content = res.data?.choices?.[0]?.message?.content;
+
+        } else if (provider === 'gemini') {
+            // Google Gemini Logic
+            // Construct multipart content with multiple images
+            const imageParts = validImages.map(img => {
+                const url = normalizeImageToVisionUrl(img);
+                const base64Data = url.split(',')[1];
+                const mimeType = url.split(';')[0].split(':')[1] || 'image/jpeg';
+                return {
+                    inline_data: {
+                        mime_type: mimeType,
+                        data: base64Data
+                    }
+                };
+            });
+
+            const geminiPayload = {
+                model: model,
+                contents: [{
+                    parts: [
+                        { text: visionPrompt + "\n\nRETURN JSON ONLY." },
+                        ...imageParts
+                    ]
+                }],
+                generationConfig: {
+                    response_mime_type: "application/json"
+                }
+            };
+
+            const res = await axios.post("/api/gemini/models/" + model + ":generateContent", geminiPayload, {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                params: { key: apiKey },
+                signal,
+            });
+            content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+
+        if (!content) throw new Error(`Empty response from ${provider} Vision.`);
+
+        // Clean markdown fences if any (Gemini loves ```json ... ```)
+        const cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanContent);
+
         return normalizeVisionOutput(parsed);
+
     } catch (e) {
         if (isAbortError(e, signal)) {
             throw new DOMException("Aborted", "AbortError");
         }
-        throw new Error(`Vision Agent Failed: ${e.message}`);
+        console.error(`[VisionScraper] Failed (${provider}):`, e);
+        throw new Error(`Vision Agent Failed (${provider}): ${e.message}`);
     }
 };
 

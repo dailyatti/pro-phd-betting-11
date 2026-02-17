@@ -429,13 +429,14 @@ function App() {
   }, [isSettingsDirty, currentView]);
 
   // Determine if Run button should be enabled based on input mode
-  // PhD-Level Requirement: Must have at least ONE reasoning/research key to run (Perplexity OR OpenAI)
+  // PhD-Level Requirement: Must have at least ONE reasoning/research key to run (Perplexity OR OpenAI OR Gemini)
   const hasValidKeys = useMemo(() => {
     const k = apiKeys || {};
     // Check for valid key length (basic heuristic)
     const hasPplx = k.perplexity?.length > 10;
     const hasOpenAI = k.openai?.length > 10;
-    return hasPplx || hasOpenAI;
+    const hasGemini = k.gemini?.length > 10;
+    return hasPplx || hasOpenAI || hasGemini;
   }, [apiKeys]);
 
   const canRunScreenshot = hasQueue && !isScanning && !isRunning && hasValidKeys;

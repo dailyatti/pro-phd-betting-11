@@ -222,41 +222,106 @@ const ensureNonEmptyResult = (arr, errorMessage = null) => {
  * @returns {Promise<QuickScanMatch[]>} Array of identified matches
  */
 export const runQuickMatchScan = async (config, imageBase64, signal) => {
-  const apiKey = typeof config === "string" ? config : config?.key;
-  const model = typeof config === "string" ? "gpt-5.2" : (config?.model || "gpt-5.2");
+  // 1. Determine provider/key
+  let provider = 'openai';
+  let apiKey = '';
+  let model = '';
 
-  if (!apiKey) throw new Error("OpenAI API Key is missing.");
+  if (typeof config === "string") {
+    apiKey = config;
+    model = "gpt-5.2";
+  } else {
+    // Dynamic provider selection
+    if (config.provider === 'gemini') {
+      provider = 'gemini';
+      apiKey = config.key;
+      model = config.model || "gemini-2.0-flash";
+    } else {
+      provider = 'openai';
+      apiKey = config.key;
+      model = config.model || "gpt-5.2";
+    }
+  }
+
+  if (!apiKey) throw new Error(`${provider.toUpperCase()} API Key is missing.`);
 
   const finalImage = normalizeImageToVisionUrl(imageBase64);
   if (!finalImage) {
     return ensureNonEmptyResult([], "Image base64 is missing or invalid.");
   }
 
-  console.log(`[Quick Scan] Identifying matches from image...`);
-
-  const payload = {
-    model,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: QUICK_SCAN_PROMPT },
-          { type: "image_url", image_url: { url: finalImage, detail: "high" } }, // high needed for small text
-        ],
-      },
-    ],
-    max_completion_tokens: 900,
-    response_format: { type: "json_object" },
-  };
+  console.log(`[Quick Scan] Identifying matches via ${provider.toUpperCase()}...`);
 
   try {
-    const res = await axios.post("/api/openai/chat/completions", payload, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal,
-    });
+    let content = "";
 
-    const content = res.data?.choices?.[0]?.message?.content;
-    if (!content) throw new Error("Empty response from Quick Scan.");
+    if (provider === 'openai') {
+      const payload = {
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: QUICK_SCAN_PROMPT },
+              { type: "image_url", image_url: { url: finalImage, detail: "high" } },
+            ],
+          },
+        ],
+        max_completion_tokens: 900,
+        response_format: { type: "json_object" },
+      };
+
+      const res = await axios.post("/api/openai/chat/completions", payload, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal,
+      });
+      content = res.data?.choices?.[0]?.message?.content;
+
+    } else if (provider === 'gemini') {
+      // Native Gemini Payload via Proxy
+      // Proxy expects standard OpenAI-like path but we can use the specific gemini endpoint logic if needed,
+      // OR use the proxy's capability to forward.
+      // Assuming /api/gemini/chat/completions maps to https://generativelanguage.googleapis.com/...
+      // The proxy might expect OpenAI format if it's a "transparent" proxy, BUT usually Gemini limits 'image_url' in 'messages'.
+      // Let's use the Google raw format which is more reliable for Gemini 2.0.
+
+      // Extract base64 from data URL
+      const base64Data = finalImage.split(',')[1];
+      const mimeType = finalImage.split(';')[0].split(':')[1] || 'image/jpeg';
+
+      const geminiPayload = {
+        model: model, // proxy uses this path param usually
+        contents: [{
+          parts: [
+            { text: QUICK_SCAN_PROMPT + "\n\nReturn JSON ONLY." },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64Data
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          response_mime_type: "application/json"
+        }
+      };
+
+      // Post to Gemini Proxy
+      const res = await axios.post("/api/gemini/models/" + model + ":generateContent", geminiPayload, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        params: { key: apiKey }, // Gemini often needs key in query param too
+        signal,
+      });
+
+      // Gemini Response Parsing
+      content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    }
+
+    if (!content) throw new Error(`Empty response from ${provider}.`);
 
     // tryParseJson is assumed to be safe; still guard
     const parsed = tryParseJson(content);
@@ -289,12 +354,13 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
     console.log(`[Quick Scan] Identified ${uniq.length} match(es).`);
 
     return ensureNonEmptyResult(uniq);
+
   } catch (e) {
     if (isAbortError(e, signal)) {
       throw new DOMException("Aborted", "AbortError");
     }
 
-    console.error("[Quick Scan] Failed:", e?.message || e);
+    console.error(`[Quick Scan] Failed (${provider}):`, e?.response?.data || e?.message || e);
 
     return ensureNonEmptyResult([], e?.message || "Quick scan failed.");
   }

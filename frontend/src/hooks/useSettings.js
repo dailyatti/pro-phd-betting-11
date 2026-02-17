@@ -41,6 +41,7 @@ export const useSettings = () => {
         const defaults = {
             openai: 'gpt-5.2',
             perplexity: 'sonar-pro',
+            gemini: 'gemini-2.0-flash',
             // Provider enable/disable states
             openaiEnabled: true,
             perplexityEnabled: true,

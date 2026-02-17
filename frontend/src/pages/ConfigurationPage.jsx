@@ -11,6 +11,7 @@ const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '' };
 const DEFAULT_MODELS = {
     openai: 'gpt-5.2',
     perplexity: 'sonar-pro',
+    gemini: 'gemini-2.0-flash',
     visionProvider: 'openai',
     // Provider enable/disable states
     openaiEnabled: true,
@@ -18,6 +19,12 @@ const DEFAULT_MODELS = {
     geminiEnabled: true
 };
 const DEFAULT_CUSTOM_MODELS = { openai: [], perplexity: [], gemini: [] };
+const GEMINI_MODEL_OPTIONS = [
+    'gemini-2.0-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite'
+];
 
 // Safe JSON parse helper
 const safeParse = (str, fallback) => {
@@ -202,6 +209,7 @@ const ConfigurationPage = ({
             const merged = {
                 openai: dedupe(storedCustom.openai),
                 perplexity: dedupe(storedCustom.perplexity),
+                gemini: dedupe(storedCustom.gemini),
             };
             setCustomModels(merged);
         }
@@ -274,7 +282,8 @@ const ConfigurationPage = ({
     // Merge base + custom (deduped)
     const modelOptions = useMemo(() => ({
         openai: dedupe([...baseModelOptions.openai, ...(customModels.openai || [])]),
-        perplexity: dedupe([...baseModelOptions.perplexity, ...(customModels.perplexity || [])])
+        perplexity: dedupe([...baseModelOptions.perplexity, ...(customModels.perplexity || [])]),
+        gemini: dedupe([...GEMINI_MODEL_OPTIONS, ...(customModels.gemini || [])])
     }), [baseModelOptions, customModels]);
 
     // UI Variables
@@ -315,6 +324,7 @@ const ConfigurationPage = ({
         const customToSave = {
             openai: dedupe(customModels.openai),
             perplexity: dedupe(customModels.perplexity),
+            gemini: dedupe(customModels.gemini),
         };
 
         persistAll(keysToSave, modelsToSave, customToSave);
@@ -511,6 +521,19 @@ const ConfigurationPage = ({
                                         <button onClick={() => addCustomModel('perplexity')} className="px-3 py-1 bg-purple-600 rounded-lg text-white text-xs font-bold hover:bg-purple-500 transition-colors">Add</button>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Gemini Selector */}
+                            <div>
+                                <label className={`text-xs font-bold uppercase tracking-wider mb-2 block text-secondary`}>Gemini Model</label>
+                                <select
+                                    value={localModels.gemini || 'gemini-2.0-flash'}
+                                    onChange={e => setLocalModels(prev => ({ ...prev, gemini: e.target.value }))}
+                                    className={`w-full rounded-xl p-3 text-sm outline-none border focus:ring-2 focus:ring-emerald-500/50 transition-all ${inputBg}`}
+                                    style={{ colorScheme: darkMode ? 'dark' : 'light' }}
+                                >
+                                    {modelOptions.gemini.map(m => <option key={m} value={m} style={{ background: darkMode ? '#000' : '#fff', color: darkMode ? '#fff' : '#000' }}>{m}</option>)}
+                                </select>
                             </div>
 
                         </div>

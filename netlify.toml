@@ -7,7 +7,7 @@
   publish = "dist"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "../netlify/functions"
   node_bundler = "esbuild"
 
 # NO API redirects needed — Functions v2 uses `export const config = { path }` for routing.

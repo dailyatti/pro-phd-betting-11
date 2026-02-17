@@ -87,6 +87,7 @@ export const runPerplexityDirectedLoop = async ({
     userModelItems,
     openaiParams,
     perplexityParams,
+    geminiParams, // [NEW] Added Gemini Params
     manualIntel,
     bankroll,
     signal,
@@ -135,6 +136,7 @@ export const runPerplexityDirectedLoop = async ({
                 userModelItems,
                 openaiParams,
                 perplexityParams,
+                geminiParams, // [NEW] Pass to single match
                 manualIntel: idx === 0 ? manualIntel : null,
                 bankroll,
                 signal,
@@ -193,16 +195,18 @@ async function processSingleMatch({
     matchData,
     openaiParams,
     perplexityParams,
+    geminiParams, // [NEW]
     manualIntel,
     bankroll,
     signal,
     onUpdate,
 }) {
     const { apiKey: openAIKey, orchestratorModel, model: openaiModel } = openaiParams || {};
+    const { apiKey: geminiKey } = geminiParams || {};
 
-    // Validation: Must have OpenAI for reasoning
-    if (!hasValidKey(openAIKey)) {
-        throw new Error("SYSTEM HALTED: OpenAI API key is required. Please add it in Settings.");
+    // Validation: Require ONE valid LLM/Research key
+    if (!hasValidKey(openAIKey) && !hasValidKey(geminiKey)) {
+        throw new Error("SYSTEM HALTED: No valid API keys found (OpenAI or Gemini required).");
     }
 
     const resolvedModel = orchestratorModel || openaiModel || 'gpt-4.1';
@@ -312,7 +316,7 @@ async function processSingleMatch({
         const team2 = labeled.team_2 || labeled.awayTeam || "Away";
         const oddsQuery = `current decimal betting odds 1X2 for ${team1} vs ${team2} (home draw away)`;
         try {
-            const oddsAnswer = await performResearch({ perplexityParams, openaiParams, query: oddsQuery, matchContext: labeled, signal });
+            const oddsAnswer = await performResearch({ perplexityParams, openaiParams, geminiParams, query: oddsQuery, matchContext: labeled, signal });
             evidenceLog.push({ round: "ODDS_SEARCH", query: oddsQuery, answer: oddsAnswer });
         } catch (err) {
             console.warn("[Orchestrator] Forced odds search failed:", err?.message);

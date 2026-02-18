@@ -25,6 +25,19 @@ export default async (req, context) => {
     const url = new URL(req.url);
     const path = url.pathname;
 
+    // Handle CORS preflight requests - browsers send OPTIONS before POST with Authorization header
+    if (req.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 204,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Max-Age": "86400"
+            }
+        });
+    }
+
     // Find matching provider
     const providerKey = Object.keys(API_CONFIG).find(key => path.startsWith(`/api/${key}`));
 

@@ -239,7 +239,7 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
     } else {
       provider = 'openai';
       apiKey = (config.key || "").trim();
-      model = config.model || "gpt-5.2";
+      model = config.model || "gpt-4o";
     }
   }
 

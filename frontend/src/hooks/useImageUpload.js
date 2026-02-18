@@ -133,7 +133,12 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
                             return nextGroups;
                         });
                     } catch (e) {
-                        console.error('[Quick Scan] Error:', e);
+                        console.error('[Quick Scan] Error details:', e);
+
+                        // User-friendly error for 401
+                        if (e.message?.includes('401') || e.response?.status === 401) {
+                            alert("⚠️ API ERROR: OpenAI accepted the request but rejected your API Key (401).\n\nPlease check:\n1. Did you copy the full key?\n2. Is the key revoked?\n3. Does the key have permissions for 'gpt-4o'?");
+                        }
 
                         // Fallback: create unknown group
                         setImageGroups((prev) => [

@@ -238,12 +238,12 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
       model = config.model || "gemini-2.0-flash";
     } else {
       provider = 'openai';
-      apiKey = config.key;
+      apiKey = (config.key || "").trim();
       model = config.model || "gpt-5.2";
     }
   }
 
-  if (!apiKey) throw new Error(`${provider.toUpperCase()} API Key is missing.`);
+  if (!apiKey || apiKey.length < 5) throw new Error(`${provider.toUpperCase()} API Key is missing or invalid.`);
 
   const finalImage = normalizeImageToVisionUrl(imageBase64);
   if (!finalImage) {

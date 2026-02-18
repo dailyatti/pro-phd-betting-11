@@ -68,8 +68,8 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
                 const newImage = { id: imageId, url: objectUrl, raw: rawBase64 };
 
                 // Determine if we have any valid vision provider
-                const hasOpenAI = !!apiKeys.openai;
-                const hasGemini = !!(apiKeys.gemini && apiKeys.gemini.length >= 10);
+                const hasOpenAI = !!(apiKeys.openai && apiKeys.openai.trim().length >= 10);
+                const hasGemini = !!(apiKeys.gemini && apiKeys.gemini.trim().length >= 10);
 
                 if (hasOpenAI || hasGemini) {
                     setIsScanning(true);
@@ -78,9 +78,9 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
 
                         // Prefer OpenAI if available (as per user preference for GPT), else Gemini
                         if (hasOpenAI) {
-                            scanConfig = { key: apiKeys.openai, model: modelSettings.openai || 'gpt-4o' };
+                            scanConfig = { key: apiKeys.openai.trim(), model: modelSettings.openai || 'gpt-4o' };
                         } else {
-                            scanConfig = { provider: 'gemini', key: apiKeys.gemini, model: modelSettings.gemini };
+                            scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings.gemini };
                         }
 
                         const scanResults = await runQuickMatchScan(

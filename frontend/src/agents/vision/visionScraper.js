@@ -254,16 +254,16 @@ export const runVisionScraper = async (config, imageBase64, signal, contextHint 
     } else {
         if (config.provider === 'gemini') {
             provider = 'gemini';
-            apiKey = config.key;
+            apiKey = (config.key || "").trim();
             model = config.model || "gemini-2.0-flash";
         } else {
             provider = 'openai';
-            apiKey = config.key;
+            apiKey = (config.key || "").trim();
             model = config.model || "gpt-4o";
         }
     }
 
-    if (!apiKey) throw new Error(`${provider.toUpperCase()} API Key is missing. Please check Settings.`);
+    if (!apiKey || apiKey.length < 5) throw new Error(`${provider.toUpperCase()} API Key is missing. Please check Settings.`);
 
     const visionPrompt = getVisionPrompt(contextHint);
     const images = Array.isArray(imageBase64) ? imageBase64 : [imageBase64];

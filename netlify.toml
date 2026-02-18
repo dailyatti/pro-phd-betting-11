@@ -10,11 +10,8 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# API Proxy Routes - no redirects, direct to functions
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
+# API Proxy Routes - handled by Netlify Functions v2 path config in api.js
+# No redirect needed: the function's `export const config = { path: "/api/*" }` handles routing
 
 # SPA fallback — only for non-API, non-function routes
 [[redirects]]

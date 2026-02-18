@@ -22,7 +22,7 @@ export const TestConnectionButton = ({ provider, apiKey, model, darkMode }) => {
             if (provider === 'openai') {
                 url = '/api/openai/chat/completions';
                 body = {
-                    model: model || 'gpt-4o',
+                    model: model || 'gpt-5.2',
                     messages: [{ role: 'user', content: 'Hello (test)' }],
                     max_completion_tokens: 5
                 };
@@ -141,12 +141,6 @@ export function ApiKeySection({ apiProviders, localKeys, setLocalKeys, localMode
                         placeholder={provider.placeholder}
                         autoComplete="off"
                     />
-                    {provider.key === 'openai' && (
-                        <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                            Note: If using a <b>Service Account Key</b> (sk-svc...), ensure it has "Model Capabilities" enabled.
-                            Standard <b>Project Keys</b> (sk-proj...) are recommended.
-                        </p>
-                    )}
                 </div>
             ))}
         </div>

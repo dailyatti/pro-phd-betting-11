@@ -85,7 +85,7 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
                         // Prefer OpenAI if available (as per user preference for GPT), else Gemini
                         if (hasOpenAI) {
                             // FIX: Explicitly set provider: 'openai'
-                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-4o' };
+                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-5.2' };
                         } else {
                             scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings?.gemini };
                         }
@@ -140,19 +140,6 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
                             return nextGroups;
                         });
                     } catch (e) {
-                        console.error('[Quick Scan] Error details:', e);
-
-                        // User-friendly error for 401
-                        if (e.message?.includes('401') || e.response?.status === 401) {
-                            // Extract specific error if available
-                            let specificError = "No specific details returned.";
-                            if (e.response?.data?.error?.message) specificError = e.response.data.error.message;
-                            else if (e.response?.data?.message) specificError = e.response.data.message;
-                            else if (typeof e.response?.data === 'string') specificError = e.response.data.slice(0, 200);
-
-                            alert(`⚠️ API ERROR: OpenAI Rejected Key (401).\n\nServer Message: "${specificError}"\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.`);
-                        }
-
                         // Fallback: create unknown group
                         setImageGroups((prev) => [
                             ...prev,

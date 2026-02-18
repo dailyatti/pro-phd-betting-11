@@ -3,7 +3,7 @@
 
 [build]
   # Explicitly cd into frontend, install deps, and build
-  command = "cd frontend && npm install && npm run build"
+  command = "cd frontend && npm ci && npm exec vite -- build"
   publish = "frontend/dist"
 
 [functions]

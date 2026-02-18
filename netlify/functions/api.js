@@ -102,10 +102,22 @@ export default async (req, context) => {
         });
 
     } catch (error) {
-        console.error(`[Proxy Error] ${providerKey} Failed:`, error);
+        // SANITIZATION: Never log the full error object if it contains config/headers with keys
+        const safeError = {
+            message: error.message,
+            stack: error.stack ? error.stack.split('\n')[0] : 'No stack', // First line only
+            response: error.response ? {
+                status: error.response.status,
+                statusText: error.response.statusText,
+                data: error.response.data
+            } : 'No response'
+        };
+
+        console.error(`[Proxy Error] ${providerKey} Failed:`, JSON.stringify(safeError));
+
         return new Response(JSON.stringify({
             error: "Proxy Error",
-            details: error.message,
+            details: error.message, // Return only the message, not the full object
             provider: providerKey
         }), {
             status: 500,

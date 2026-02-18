@@ -144,7 +144,13 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
 
                         // User-friendly error for 401
                         if (e.message?.includes('401') || e.response?.status === 401) {
-                            alert("⚠️ API ERROR: OpenAI Rejected Key (401).\n\nDetails: The key format seems correct, but OpenAI refused it.\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.");
+                            // Extract specific error if available
+                            let specificError = "No specific details returned.";
+                            if (e.response?.data?.error?.message) specificError = e.response.data.error.message;
+                            else if (e.response?.data?.message) specificError = e.response.data.message;
+                            else if (typeof e.response?.data === 'string') specificError = e.response.data.slice(0, 200);
+
+                            alert(`⚠️ API ERROR: OpenAI Rejected Key (401).\n\nServer Message: "${specificError}"\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.`);
                         }
 
                         // Fallback: create unknown group

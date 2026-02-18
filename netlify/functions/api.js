@@ -29,20 +29,23 @@ export default async (req, context) => {
     const providerKey = Object.keys(API_CONFIG).find(key => path.startsWith(`/api/${key}`));
 
     if (!providerKey) {
+        console.warn(`[Proxy 404] Unknown Provider. URL: ${req.url}`);
         return new Response("Not Found: Unknown API Provider", { status: 404 });
     }
 
     const config = API_CONFIG[providerKey];
-    const targetPath = path.replace(config.strip, "");
+    const targetPath = path.replace(config.strip, ""); // Remove /api/provider prefix
 
     // Gemini sometimes needs query params for API key, sometimes in header. 
     // We pass the full search including ?key=... from the client.
     const targetUrl = `${config.target}${targetPath}${url.search}`;
 
+    console.log(`[Proxy Start] ${req.method} ${url.pathname} -> ${targetUrl}`);
+
     try {
         // Prepare headers - CRITICAL: Keep Authorization header intact
         const headers = new Headers(req.headers);
-        
+
         // Set correct host for the upstream API
         headers.set("Host", new URL(config.target).host);
 
@@ -53,22 +56,23 @@ export default async (req, context) => {
         headers.delete("x-forwarded-host");
         headers.delete("x-forwarded-proto");
         headers.delete("x-forwarded-for");
-        
+        headers.delete("content-length"); // Let fetch calc this
+
         // Delete Netlify-specific headers that might interfere
         headers.delete("netlify-original-pathname");
         headers.delete("netlify-branch");
 
-        // Handle request body properly
+        // Handle request body properly - BUFFER IT
         let body = null;
         if (req.method !== 'GET' && req.method !== 'HEAD') {
-            // For POST/PUT - use the raw body
-            if (req.body) {
-                if (typeof req.body === 'string') {
-                    body = req.body;
-                } else {
-                    // If it's a ReadableStream or Buffer, use it as-is
-                    body = req.body;
+            try {
+                const arrayBuffer = await req.arrayBuffer();
+                if (arrayBuffer && arrayBuffer.byteLength > 0) {
+                    body = arrayBuffer;
+                    console.log(`[Proxy Body] Buffered ${arrayBuffer.byteLength} bytes.`);
                 }
+            } catch (e) {
+                console.warn(`[Proxy Body] Failed to read body: ${e.message}`);
             }
         }
 
@@ -76,30 +80,19 @@ export default async (req, context) => {
         const fetchOptions = {
             method: req.method,
             headers: headers,
+            body: body
         };
-
-        // Only add body if present
-        if (body) {
-            fetchOptions.body = body;
-        }
-
-        // Log request for debugging (first 200 chars of body)
-        console.log(`[Proxy] ${providerKey}: ${req.method} ${targetPath}`);
-        if (body && typeof body === 'string' && body.length < 200) {
-            console.log(`[Proxy] Body: ${body}`);
-        }
 
         // Make request to upstream API
         const response = await fetch(targetUrl, fetchOptions);
+
+        console.log(`[Proxy Upstream] ${providerKey} responded with ${response.status}`);
 
         // Create response headers
         const resHeaders = new Headers(response.headers);
         resHeaders.set("Access-Control-Allow-Origin", "*"); // CORS
         resHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         resHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-        // Log response status
-        console.log(`[Proxy] ${providerKey} Response: ${response.status}`);
 
         // Return response with proper streaming
         return new Response(response.body, {
@@ -109,14 +102,17 @@ export default async (req, context) => {
         });
 
     } catch (error) {
-        console.error(`Proxy Error (${providerKey}):`, error);
-        return new Response(JSON.stringify({ 
-            error: "Proxy Error", 
+        console.error(`[Proxy Error] ${providerKey} Failed:`, error);
+        return new Response(JSON.stringify({
+            error: "Proxy Error",
             details: error.message,
             provider: providerKey
         }), {
             status: 500,
-            headers: { "Content-Type": "application/json" }
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
         });
     }
 };

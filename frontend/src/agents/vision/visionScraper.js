@@ -372,7 +372,7 @@ export const runVisionScraper = async (config, imageBase64, signal, contextHint 
  * acts as a second pair of eyes.
  */
 export const runVisionRescue = async (config, images, team1, team2, missingMarkets, signal) => {
-    const openaiKey = typeof config === "string" ? config : config?.key;
+    const openaiKey = typeof config === "string" ? config.trim() : (config?.key || "").trim();
     const openaiModel = typeof config === "object" && config.model ? config.model : "gpt-4o";
     if (!openaiKey) return null;
 

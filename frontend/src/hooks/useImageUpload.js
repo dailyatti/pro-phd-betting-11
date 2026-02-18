@@ -20,7 +20,7 @@ const MAX_IMAGES_PER_GROUP = 15;
  * @param {Function} resetBlackboard - Callback to reset results on new upload
  * @returns {Object} Image upload state and handlers
  */
-export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, resetBlackboard }) => {
+export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMountedRef, resetBlackboard }) => {
     // Multi-image with match grouping
     // Format: [{ id, matchId, matchLabel, sport, images: [{ id, url, raw }], autoDetected }]
     const [imageGroups, setImageGroups] = useState([]);
@@ -52,10 +52,10 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
             activeUrlsRef.current.add(objectUrl);
 
             const reader = new FileReader();
-            reader.readAsDataURL(file);
 
+            // FIX: Set handlers BEFORE reading to avoid race condition
             reader.onerror = () => {
-                setIsScanning(false);
+                if (isMountedRef.current) setIsScanning(false);
                 setError('Failed to read image file.');
             };
 
@@ -63,13 +63,19 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
                 if (!isMountedRef.current) return;
 
                 const rawBase64 = reader.result;
+                if (!rawBase64) {
+                    setError('Failed to read image file (empty result).');
+                    return;
+                }
+
                 console.log(`[Upload Debug] FileReader finished for ${file.name}. Raw length: ${rawBase64?.length}, Prefix: ${String(rawBase64).slice(0, 30)}...`);
 
                 const newImage = { id: imageId, url: objectUrl, raw: rawBase64 };
 
                 // Determine if we have any valid vision provider
-                const hasOpenAI = !!(apiKeys.openai && apiKeys.openai.trim().length >= 10);
-                const hasGemini = !!(apiKeys.gemini && apiKeys.gemini.trim().length >= 10);
+                // FIX: Optional chaining to prevent crash if apiKeys is undefined
+                const hasOpenAI = !!(apiKeys?.openai && apiKeys.openai.trim().length >= 10);
+                const hasGemini = !!(apiKeys?.gemini && apiKeys.gemini.trim().length >= 10);
 
                 if (hasOpenAI || hasGemini) {
                     setIsScanning(true);
@@ -78,9 +84,10 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
 
                         // Prefer OpenAI if available (as per user preference for GPT), else Gemini
                         if (hasOpenAI) {
-                            scanConfig = { key: apiKeys.openai.trim(), model: modelSettings.openai || 'gpt-4o' };
+                            // FIX: Explicitly set provider: 'openai'
+                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-4o' };
                         } else {
-                            scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings.gemini };
+                            scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings?.gemini };
                         }
 
                         const scanResults = await runQuickMatchScan(
@@ -173,8 +180,12 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
                 setError(null);
                 if (resetBlackboard) resetBlackboard();
             };
+
+            // FIX: Start reading AFTER setting handlers
+            reader.readAsDataURL(file);
         },
-        [apiKeys.openai, modelSettings.openai, genId, isMountedRef, resetBlackboard]
+        // FIX: Add ALL dependencies to avoid stale closures including apiKeys/modelSettings
+        [apiKeys, modelSettings, genId, isMountedRef, resetBlackboard]
     );
 
     // Add image directly to an existing group (no API scan)
@@ -187,12 +198,15 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
             activeUrlsRef.current.add(objectUrl);
 
             const reader = new FileReader();
-            reader.readAsDataURL(file);
 
+            // FIX: Set handlers BEFORE reading
             reader.onloadend = () => {
                 if (!isMountedRef.current) return;
 
-                const newImage = { id: imageId, url: objectUrl, raw: reader.result };
+                const rawBase64 = reader.result;
+                if (!rawBase64) return;
+
+                const newImage = { id: imageId, url: objectUrl, raw: rawBase64 };
 
                 setImageGroups((prev) =>
                     prev.map((g) => {
@@ -202,6 +216,9 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
                     })
                 );
             };
+
+            // FIX: Start reading AFTER setting handlers
+            reader.readAsDataURL(file);
         },
         [genId, isMountedRef]
     );

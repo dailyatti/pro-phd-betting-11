@@ -360,6 +360,12 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
       throw new DOMException("Aborted", "AbortError");
     }
 
+    // CRITICAL: Propagate 401 errors so UI can show specific alerts
+    if (e?.response?.status === 401 || e.message?.includes('401')) {
+      console.error(`[Quick Scan] 401 Unauthorized (${provider}). Propagating error...`);
+      throw e;
+    }
+
     console.error(`[Quick Scan] Failed (${provider}):`, e?.response?.data || e?.message || e);
 
     return ensureNonEmptyResult([], e?.message || "Quick scan failed.");

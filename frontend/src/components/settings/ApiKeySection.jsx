@@ -141,6 +141,12 @@ export function ApiKeySection({ apiProviders, localKeys, setLocalKeys, localMode
                         placeholder={provider.placeholder}
                         autoComplete="off"
                     />
+                    {provider.key === 'openai' && (
+                        <p className="text-[10px] text-slate-400 mt-1 ml-1">
+                            Note: If using a <b>Service Account Key</b> (sk-svc...), ensure it has "Model Capabilities" enabled.
+                            Standard <b>Project Keys</b> (sk-proj...) are recommended.
+                        </p>
+                    )}
                 </div>
             ))}
         </div>

@@ -137,7 +137,7 @@ export const useImageUpload = ({ apiKeys, modelSettings, genId, isMountedRef, re
 
                         // User-friendly error for 401
                         if (e.message?.includes('401') || e.response?.status === 401) {
-                            alert("⚠️ API ERROR: OpenAI accepted the request but rejected your API Key (401).\n\nPlease check:\n1. Did you copy the full key?\n2. Is the key revoked?\n3. Does the key have permissions for 'gpt-4o'?");
+                            alert("⚠️ API ERROR: OpenAI Rejected Key (401).\n\nDetails: The key format seems correct, but OpenAI refused it.\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.");
                         }
 
                         // Fallback: create unknown group

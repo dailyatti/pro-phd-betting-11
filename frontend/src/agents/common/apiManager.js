@@ -137,7 +137,9 @@ export class APIManager {
             case 'openai':
                 if (this.hasOpenAI()) {
                     const cfg = this.config.openai;
-                    return { provider: 'openai', apiKey: cfg.apiKey, model: cfg.model || 'gpt-4o' };
+                    let targetModel = cfg.model || 'gpt-4o';
+                    if (targetModel === 'gpt-5.2') targetModel = 'gpt-4o'; // Auto-correct legacy/invalid setting
+                    return { provider: 'openai', apiKey: cfg.apiKey, model: targetModel };
                 }
                 break;
             case 'perplexity':

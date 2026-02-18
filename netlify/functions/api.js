@@ -40,29 +40,68 @@ export default async (req, context) => {
     const targetUrl = `${config.target}${targetPath}${url.search}`;
 
     try {
-        // Prepare headers
+        // Prepare headers - CRITICAL: Keep Authorization header intact
         const headers = new Headers(req.headers);
+        
+        // Set correct host for the upstream API
         headers.set("Host", new URL(config.target).host);
 
-        // Remove headers that might confuse the upstream
-        headers.delete("content-length");
+        // Remove only the headers that will cause issues with upstream
+        // DO NOT remove Authorization - it's needed!
         headers.delete("connection");
-        headers.delete("origin");
-        headers.delete("referer");
+        headers.delete("keep-alive");
+        headers.delete("x-forwarded-host");
+        headers.delete("x-forwarded-proto");
+        headers.delete("x-forwarded-for");
+        
+        // Delete Netlify-specific headers that might interfere
+        headers.delete("netlify-original-pathname");
+        headers.delete("netlify-branch");
 
-        // Make request to upstream API
-        const response = await fetch(targetUrl, {
+        // Handle request body properly
+        let body = null;
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            // For POST/PUT - use the raw body
+            if (req.body) {
+                if (typeof req.body === 'string') {
+                    body = req.body;
+                } else {
+                    // If it's a ReadableStream or Buffer, use it as-is
+                    body = req.body;
+                }
+            }
+        }
+
+        // Prepare fetch options
+        const fetchOptions = {
             method: req.method,
             headers: headers,
-            body: req.body,
-            duplex: 'half' // Required for streaming bodies in simple fetch if supported, but standard fetch usually handles it
-        });
+        };
+
+        // Only add body if present
+        if (body) {
+            fetchOptions.body = body;
+        }
+
+        // Log request for debugging (first 200 chars of body)
+        console.log(`[Proxy] ${providerKey}: ${req.method} ${targetPath}`);
+        if (body && typeof body === 'string' && body.length < 200) {
+            console.log(`[Proxy] Body: ${body}`);
+        }
+
+        // Make request to upstream API
+        const response = await fetch(targetUrl, fetchOptions);
 
         // Create response headers
         const resHeaders = new Headers(response.headers);
-        resHeaders.set("Access-Control-Allow-Origin", "*"); // Basic CORS
+        resHeaders.set("Access-Control-Allow-Origin", "*"); // CORS
+        resHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        resHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-        // Return streamed response
+        // Log response status
+        console.log(`[Proxy] ${providerKey} Response: ${response.status}`);
+
+        // Return response with proper streaming
         return new Response(response.body, {
             status: response.status,
             statusText: response.statusText,
@@ -71,7 +110,11 @@ export default async (req, context) => {
 
     } catch (error) {
         console.error(`Proxy Error (${providerKey}):`, error);
-        return new Response(JSON.stringify({ error: "Proxy Error", details: error.message }), {
+        return new Response(JSON.stringify({ 
+            error: "Proxy Error", 
+            details: error.message,
+            provider: providerKey
+        }), {
             status: 500,
             headers: { "Content-Type": "application/json" }
         });

@@ -26,7 +26,7 @@ export async function parseWithGPT(text, apiKey, model = 'gpt-4.1-mini') {
         return [];
     }
 
-    const systemPrompt = `You are a UNIVERSAL sports betting data extraction AI. You can read and understand ANY language, ANY format, ANY writing style. Your ONLY job: find matches and odds in the user's text, no matter how messy, abbreviated, or informal it is.
+    const systemPrompt = `You are a UNIVERSAL sports betting data extraction AI, expert in Hungarian ("mérkőzések" = matches) and all world languages. Your ONLY job: find matches and odds in the user's text, no matter how messy, abbreviated, or informal it is.
 
 ZERO ASSUMPTIONS ABOUT FORMAT. The user may write:
 - Sloppy shorthand: "real barca o1.5 corner 2.20"
@@ -36,7 +36,8 @@ ZERO ASSUMPTIONS ABOUT FORMAT. The user may write:
 - With separators: "psg - monaco 1.90/3.60/4.00"
 - Markdown: "### 1. **Arsenal vs Chelsea** (PL) Home 2.38"
 - Tabular: "Team1  Team2  1  X  2\\nBarca  Real  1.55  4.20  6.00"
-- Hungarian: "Fradi Újpest hazai 1.30 döntetlen 5.50 vendég 9.00 gólok over 2.5 1.85"
+- Hungarian mérkőzések (matches): "Fradi Újpest hazai 1.30 döntetlen 5.50 vendég 9.00 gólok over 2.5 1.85"
+- Hungarian betting terms: "szöglet" (corners), "gól" (goals), "mérkőzés" (match), "tétek" (bets)
 - German: "Bayern gegen Dortmund Sieg 1.50 Unentschieden 4.00 Niederlage 6.00"
 - Spanish: "Madrid vs Barça victoria local 1.80 empate 3.50 victoria visitante 4.20"
 - Turkish: "Galatasaray Fenerbahçe ev sahibi 1.90 berabere 3.40 deplasman 3.80"
@@ -48,19 +49,35 @@ ZERO ASSUMPTIONS ABOUT FORMAT. The user may write:
 - American odds: "+150 -110"
 - Fractional odds: "5/2 7/4"
 
-UNIVERSAL LANGUAGE DICTIONARY (non-exhaustive — you know ALL languages):
+UNIVERSAL LANGUAGE DICTIONARY (comprehensive for Hungarian & ALL languages):
 Home/Win/1: Hazai, Heim, Local, Casa, Ev sahibi, Domácí, Gazda, Dom, Hemmslag, Koti
 Draw/X: Döntetlen, Unentschieden, Empate, Berabere, Remíza, Egal, Oavgjort
 Away/2: Vendég, Gast, Visitante, Deplasman, Hosté, Oaspete, Borta
 Over: Több, Über, Más, Üst, Nad, Peste, Över
 Under: Kevesebb, Unter, Menos, Alt, Pod, Sub, Under
-BTTS: Mindkét csapat gól, MKCSG, Beide Teams treffen, Ambos marcan, GG/NG
+BTTS: Mindkét csapat gól, Mindkét csapat gólt szerez, MKCSG, Beide Teams treffen, Ambos marcan, GG/NG
 Goals: Gól, Gólszám, Tore, Goles, Goller, Góly
 Corners: Szöglet, Sarok, Ecken, Esquinas, Köşe, Rohy, Cornere
 Cards: Lap, Karte, Tarjeta, Kart
 Handicap: Hátrány, Handicap, Hándicap, AH
 Half Time: Félidő, Halbzeit, Primer tiempo, İlk yarı, HT
 Full Time: Végeredmény, Endergebnis, Resultado final, FT
+Match/Game: Mérkőzés, Spiel, Partido, Maç, Zápas, Hra
+
+HUNGARIAN SPORTS BETTING CONTEXTUAL KNOWLEDGE:
+- "mérkőzések" = matches (plural)
+- "mérkőzés" = match (singular)
+- "hazai" = home team
+- "vendég" = away team
+- "döntetlen" = draw
+- "szöglet" = corner
+- "gól" = goal(s)
+- "félidő" = half-time
+- "végeredmény" = final result
+- "tét/tétek" = bet/bets
+- "fogadás" = betting
+- "bukméker" = bookmaker
+- "odds/szorzó" = odds/multiplier
 
 TEAM NAME INTELLIGENCE — resolve abbreviations and nicknames:
 - "real" / "rm" / "madrid" → Real Madrid
@@ -95,6 +112,7 @@ SMART INFERENCE:
 10. If you see a number like 2.5, 1.5, 3.5 followed by an odds number → that's a line + odds
 11. Default sport = "soccer" unless basketball/tennis/hockey/NFL keywords are present
 12. Multiple matches separated by newlines, semicolons, ";" , numbers "1." "2.", or paragraphs
+13. Hungarian mérkőzések text: if text contains mérkőzés, döntetlen, hazai, vendég, szöglet → treat as sports betting data even if format is unusual
 
 OUTPUT — strict JSON only, no other text:
 {
@@ -125,7 +143,8 @@ ABSOLUTE RULES:
 - ALWAYS extract, even from 1 line with 1 match and 1 odds value
 - Parse decimal odds (2.38), comma decimals (2,38→2.38), fractional (5/2→3.50), american (+150→2.50, -110→1.91)
 - extraMarkets = any market not fitting the standard fields (corners, cards, halftime, player props, handicaps, specials)
-- Output ONLY raw JSON — no markdown, no \`\`\`, no explanation`;
+- Output ONLY raw JSON — no markdown, no \`\`\`, no explanation
+- For Hungarian text: "Fradi Újpest hazai 1.30 döntetlen 5.50 vendég 9.00" → team1=Fradi, team2=Újpest, homeOdds=1.30, drawOdds=5.50, awayOdds=9.00`;
 
     const userPrompt = `Parse ALL matches and bets from this text:\n\n${text}`;
 
@@ -152,14 +171,19 @@ ABSOLUTE RULES:
 
         if (!response.ok) {
             const errText = await response.text().catch(() => '');
-            console.error('[TextParser] GPT API error:', response.status, errText);
+            console.error('[TextParser] GPT API error:', response.status, response.statusText);
+            console.error('[TextParser] Error details:', errText.substring(0, 500));
+            console.warn('[TextParser] Falling back to regex parser due to API error');
             return parseManualTextInput(text);
         }
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content || '';
-
-        console.log('[TextParser] GPT raw response:', content.substring(0, 500));
+        
+        if (!content) {
+            console.warn('[TextParser] Empty GPT response, falling back to regex');
+            return parseManualTextInput(text);
+        }        console.log('[TextParser] GPT raw response:', content.substring(0, 500));
 
         let parsed;
         try {

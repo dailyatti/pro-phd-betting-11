@@ -282,9 +282,10 @@ export const n = (x, fallback = 0) => {
  *   openai     -> /api/openai/chat/completions
  *   perplexity -> /api/perplexity/chat/completions
  *   gemini     -> /api/gemini/models/{model}:generateContent
+ *   grok       -> /api/grok/chat/completions
  *
  * @param {Object} params
- * @param {string} params.provider - 'openai', 'perplexity', 'gemini'
+ * @param {string} params.provider - 'openai', 'perplexity', 'gemini', 'grok'
  * @param {string} params.apiKey - User provided API key
  * @param {string} params.model - Model identifier
  * @param {Object} params.payload - Provider-specific payload
@@ -309,6 +310,12 @@ export const callLlmProxy = async ({ provider, apiKey, model, payload, signal, t
 
         case 'perplexity':
             url = '/api/perplexity/chat/completions';
+            headers["Authorization"] = `Bearer ${key}`;
+            body = payload;
+            break;
+
+        case 'grok':
+            url = '/api/grok/chat/completions';
             headers["Authorization"] = `Bearer ${key}`;
             body = payload;
             break;

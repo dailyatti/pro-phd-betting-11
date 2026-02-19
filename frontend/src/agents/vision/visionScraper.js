@@ -11,7 +11,6 @@
  * @module agents/vision/visionScraper
  */
 
-import axios from "axios";
 import {
     isAbortError,
     normalizeImageToVisionUrl,

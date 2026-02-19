@@ -558,6 +558,7 @@ function App() {
                       value={manualMatchText}
                       onChange={(e) => { setManualMatchText(e.target.value); setParseError(""); }}
                       placeholder={"Write matches in ANY format — GPT AI will parse them:\n\nReal Madrid vs Barcelona over 1.5 corner 2.20\nLiverpool - Man City 2.10 3.40 3.50 btts 1.70\nPSG Monaco hazai 1.80 döntetlen 3.50 vendég 4.20\nLakers vs Celtics ML 1.65\n\nOr use structured format:\n### 1. **Arsenal vs Chelsea** (PL, 17:30)\n- 1X2: 2.38 / 3.90 / 2.90"}
+                      maxLength={20000}
                       className={`w-full h-48 p-3 rounded-xl text-xs font-mono border resize-none transition-all outline-none ${darkMode
                         ? 'bg-black/30 border-indigo-500/30 text-indigo-100 placeholder-indigo-500/40 focus:border-indigo-400'
                         : 'bg-white border-indigo-200 text-indigo-900 placeholder-indigo-400/50 focus:border-indigo-400'

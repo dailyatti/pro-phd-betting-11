@@ -1,48 +1,67 @@
 /**
  * Custom hook to manage application settings.
- * Handles API keys, model selection, and UI state for the settings modal.
- * 
+ * Handles API keys (encrypted), model selection, and UI state.
+ *
  * @module hooks/useSettings
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { loadKeysEncrypted, saveKeysEncrypted, isVaultSupported } from '../utils/keyVault';
+
+const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '' };
 
 /**
- * Manages settings, API keys, and model configurations.
- * 
+ * Manages settings, API keys (with encryption), and model configurations.
+ *
  * @returns {Object} Settings state and handlers
  */
 export const useSettings = () => {
     const [showSettings, setShowSettings] = useState(false);
 
-    // API Keys state
-    const [apiKeys, setApiKeys] = useState(() => {
-        try {
-            const raw = localStorage.getItem('phd_betting_api_keys');
-            const storedKeys = raw ? JSON.parse(raw) : {};
-            // BYOK: No default keys - users must provide their own
-            return {
-                openai: storedKeys.openai || "",
-                perplexity: storedKeys.perplexity || "",
-                gemini: storedKeys.gemini || "",
-            };
-        } catch (e) {
-            // BYOK: No default keys - users must provide their own
-            return {
-                openai: "",
-                perplexity: "",
-                gemini: "",
-            };
-        }
-    });
+    // API Keys state — initialized empty, loaded async from vault
+    const [apiKeys, setApiKeys] = useState(DEFAULT_KEYS);
+    const [keysLoaded, setKeysLoaded] = useState(false);
 
-    // AI Model settings — load from localStorage if available
+    // Load encrypted keys on mount
+    useEffect(() => {
+        let cancelled = false;
+
+        const load = async () => {
+            try {
+                if (isVaultSupported()) {
+                    const keys = await loadKeysEncrypted();
+                    if (!cancelled) {
+                        setApiKeys({ ...DEFAULT_KEYS, ...keys });
+                    }
+                } else {
+                    // Fallback: plaintext (old browsers)
+                    try {
+                        const raw = localStorage.getItem('phd_betting_api_keys');
+                        const storedKeys = raw ? JSON.parse(raw) : {};
+                        if (!cancelled) {
+                            setApiKeys({ ...DEFAULT_KEYS, ...storedKeys });
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+            } catch {
+                // ignore — keys stay empty
+            } finally {
+                if (!cancelled) setKeysLoaded(true);
+            }
+        };
+
+        load();
+        return () => { cancelled = true; };
+    }, []);
+
+    // AI Model settings
     const [modelSettings, setModelSettings] = useState(() => {
         const defaults = {
             openai: 'gpt-5.2',
             perplexity: 'sonar-pro',
             gemini: 'gemini-2.0-flash',
-            // Provider enable/disable states
             openaiEnabled: true,
             perplexityEnabled: true,
             geminiEnabled: true
@@ -62,28 +81,35 @@ export const useSettings = () => {
     // Bankroll state
     const [bankroll, setBankroll] = useState('');
 
-    /**
-     * Toggles the visibility of the settings modal.
-     * @param {boolean} [forceState] - Optional boolean to force a specific state
-     */
     const toggleSettings = (forceState) => {
         setShowSettings(prev => typeof forceState === 'boolean' ? forceState : !prev);
     };
 
     /**
-     * Updates a specific API key.
-     * @param {string} provider - 'openai', 'perplexity', or 'gemini'
-     * @param {string} key - The API key
+     * Update API keys — saves encrypted to vault
      */
+    const updateApiKeys = useCallback(async (newKeys) => {
+        const merged = { ...DEFAULT_KEYS, ...newKeys };
+        setApiKeys(merged);
+
+        if (isVaultSupported()) {
+            await saveKeysEncrypted(merged);
+        } else {
+            localStorage.setItem('phd_betting_api_keys', JSON.stringify(merged));
+        }
+    }, []);
+
     const updateApiKey = (provider, key) => {
-        setApiKeys(prev => ({ ...prev, [provider]: key }));
+        setApiKeys(prev => {
+            const next = { ...prev, [provider]: key };
+            // Async save — fire and forget
+            if (isVaultSupported()) {
+                saveKeysEncrypted(next);
+            }
+            return next;
+        });
     };
 
-    /**
-     * Updates model selection for a provider.
-     * @param {string} provider - 'openai', 'perplexity', 'gemini', or 'visionProvider'
-     * @param {string} model - The model ID
-     */
     const updateModel = (provider, model) => {
         setModelSettings(prev => ({ ...prev, [provider]: model }));
     };
@@ -92,12 +118,13 @@ export const useSettings = () => {
         showSettings,
         toggleSettings,
         apiKeys,
-        setApiKeys,
+        setApiKeys: updateApiKeys,
         updateApiKey,
         modelSettings,
         setModelSettings,
         updateModel,
         bankroll,
-        setBankroll
+        setBankroll,
+        keysLoaded
     };
 };

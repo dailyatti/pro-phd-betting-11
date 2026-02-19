@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import { tryParseJson, safeStringify, isAbortError, retryAsync } from '../common/helpers.js';
+import { tryParseJson, safeStringify, isAbortError, retryAsync, callLlmProxy } from '../common/helpers.js';
 import { getPerplexityPrompt } from '../common/prompts/perplexity.js';
 
 // ============================================================================
@@ -68,12 +68,15 @@ const runGeminiResearch = async (config, query, signal) => {
   };
 
   return await retryAsync(async () => {
-    // Direct call to Netlify proxy which handles the googleapis.com routing
-    const res = await axios.post(`/api/gemini/models/${model}:generateContent?key=${apiKey}`, payload, {
-      headers: { 'Content-Type': 'application/json' },
+    // Unified Proxy for Gemini
+    const data = await callLlmProxy({
+      provider: 'gemini',
+      apiKey,
+      model,
+      payload,
       signal
     });
-    return normalizeGeminiResponse(res, query);
+    return normalizeGeminiResponse({ data }, query);
   }, [], 2);
 };
 
@@ -346,11 +349,14 @@ export const runFactChecker = async (config, matchData, signal) => {
 
   try {
     return await retryAsync(async () => {
-      const res = await axios.post('/api/perplexity/chat/completions', payload, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
+      const data = await callLlmProxy({
+        provider: 'perplexity',
+        apiKey,
+        model,
+        payload,
         signal
       });
-      return normalizePerplexityResponse(res);
+      return normalizePerplexityResponse({ data });
     }, [], 2);
 
   } catch (e) {
@@ -363,12 +369,15 @@ export const runFactChecker = async (config, matchData, signal) => {
       console.warn(`[Fact Checker] Model ${model} failed. Auto-healing with sonar-pro...`);
       try {
         const fallbackPayload = { ...payload, model: 'sonar-pro' };
-        const res = await axios.post('/api/perplexity/chat/completions', fallbackPayload, {
-          headers: { 'Authorization': `Bearer ${apiKey}` },
+        const data = await callLlmProxy({
+          provider: 'perplexity',
+          apiKey,
+          model: 'sonar-pro',
+          payload: fallbackPayload,
           signal
         });
 
-        return normalizePerplexityResponse(res);
+        return normalizePerplexityResponse({ data });
       } catch (retryError) {
         throw new Error(`Fact Checker Failed (Auto-heal attempt failed): ${retryError.message}`);
       }

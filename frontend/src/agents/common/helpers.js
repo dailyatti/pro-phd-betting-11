@@ -268,3 +268,38 @@ export const n = (x, fallback = 0) => {
     const v = typeof x === "string" ? Number(x) : x;
     return Number.isFinite(v) ? v : fallback;
 };
+
+// ============================================================================
+// NETLIFY PROXY HELPER
+// ============================================================================
+
+/**
+ * Unified Netlify Function proxy:
+ * POST /.netlify/functions/llm
+ * Header: X-User-Api-Key: <USER_KEY>
+ * Body: { provider, model, payload }
+ * 
+ * @param {Object} params
+ * @param {string} params.provider - 'openai', 'anthropic', 'perplexity', 'gemini'
+ * @param {string} params.apiKey - User provided API key
+ * @param {string} params.model - Model identifier
+ * @param {Object} params.payload - Provider specific payload
+ * @param {AbortSignal} [params.signal] - Optional abort signal
+ * @param {number} [params.timeoutMs] - Optional timeout (default 90000)
+ * @returns {Promise<any>} Response data from the provider
+ */
+export const callLlmProxy = async ({ provider, apiKey, model, payload, signal, timeoutMs = 90000 }) => {
+    const res = await axios.post(
+        "/.netlify/functions/llm",
+        { provider, model, payload },
+        {
+            headers: {
+                "Content-Type": "application/json",
+                "X-User-Api-Key": String(apiKey || "").trim(),
+            },
+            signal,
+            timeout: timeoutMs,
+        }
+    );
+    return res.data;
+};

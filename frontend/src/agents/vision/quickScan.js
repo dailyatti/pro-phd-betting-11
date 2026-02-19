@@ -1,21 +1,16 @@
 /**
  * Quick Match Scan Agent — HARDENED (PhD-level robust)
  *
- * Fast pre-identification for image grouping.
- * Identifies matches in a betting screenshot before detailed analysis.
- *
- * Design goals:
- * - ZERO crashes on weird JSON / partial output
- * - Works on single-match pages + multi-match lists
- * - Always returns a non-empty array (fallback on failure)
- * - Stable-ish matchId with low collision risk
- * - Strict JSON response_format + defensive parsing anyway
+ * Netlify-compatible BYOK version:
+ * - Calls /.netlify/functions/llm (single proxy endpoint)
+ * - Sends user key via header (X-User-Api-Key)
+ * - Provider/model/payload via body
  *
  * @module agents/vision/quickScan
  */
 
 import axios from "axios";
-import { tryParseJson, isAbortError, normalizeImageToVisionUrl } from "../common/helpers.js";
+import { tryParseJson, isAbortError, normalizeImageToVisionUrl, callLlmProxy } from "../common/helpers.js";
 
 /**
  * @typedef {Object} QuickScanMatch
@@ -121,7 +116,6 @@ const normalizeSport = (s) => {
   const t = String(s ?? "").trim().toUpperCase();
   if (!t) return "OTHER";
 
-  // Accept common aliases
   if (t === "SOCCER") return "FOOTBALL";
   if (t === "HOCKEY") return "NHL";
   if (t === "BASEBALL") return "MLB";
@@ -133,7 +127,6 @@ const normalizeSport = (s) => {
 const looksLikeScore = (s) => /^\s*\d+\s*[-:]\s*\d+\s*$/.test(String(s ?? ""));
 
 const nowEntropy = () => {
-  // very low collision in practice for client use
   const rnd = Math.random().toString(36).slice(2, 8);
   return `${Date.now()}-${rnd}`;
 };
@@ -165,10 +158,7 @@ const normalizeMatch = (raw) => {
   const is_live = safeBool(obj.is_live, false);
 
   let live_score = safeStringOrNull(obj.live_score);
-  if (live_score && !looksLikeScore(live_score)) {
-    // if it's not a score-like string, discard to avoid junk
-    live_score = null;
-  }
+  if (live_score && !looksLikeScore(live_score)) live_score = null;
 
   const live_minute =
     obj.live_minute === null || obj.live_minute === undefined
@@ -202,8 +192,6 @@ const ensureNonEmptyResult = (arr, errorMessage = null) => {
   const list = Array.isArray(arr) ? arr.filter(Boolean) : [];
   if (list.length > 0) return list;
 
-  // ARCHITECTURAL FIX: Return empty array on failure/empty.
-  // Do NOT return a "fallback" match, as this pollutes the analysis queue with "Unknown Match".
   if (errorMessage) {
     console.warn("[Quick Scan] Returning empty result due to:", errorMessage);
   }
@@ -211,52 +199,63 @@ const ensureNonEmptyResult = (arr, errorMessage = null) => {
 };
 
 // --------------------------------------------
+// Netlify BYOK Proxy Call Helper
+// --------------------------------------------
+
+// --------------------------------------------
+// Netlify BYOK Proxy Call Helper
+// --------------------------------------------
+
+// callLlmProxy is imported from ../common/helpers.js
+
+// --------------------------------------------
 // Main
 // --------------------------------------------
 
 /**
  * Runs a quick scan on an image to identify matches
- * @param {Object|string} config - Config object with key/model or API key string
+ * @param {Object|string} config - Config object with key/model/provider OR API key string
  * @param {string} imageBase64 - Base64 encoded image (data URL)
  * @param {AbortSignal} signal - Abort signal for cancellation
  * @returns {Promise<QuickScanMatch[]>} Array of identified matches
  */
 export const runQuickMatchScan = async (config, imageBase64, signal) => {
-  // 1. Determine provider/key
-  let provider = 'openai';
-  let apiKey = '';
-  let model = '';
+  // 1) Determine provider/key/model
+  let provider = "openai";
+  let apiKey = "";
+  let model = "";
 
   if (typeof config === "string") {
-    apiKey = config;
+    apiKey = config.trim();
     model = "gpt-5.2";
   } else {
-    // Dynamic provider selection
-    if (config.provider === 'gemini') {
-      provider = 'gemini';
-      apiKey = config.key;
-      model = config.model || "gemini-2.0-flash";
+    if (config?.provider === "gemini") {
+      provider = "gemini";
+      apiKey = String(config?.key || "").trim();
+      model = config?.model || "gemini-2.0-flash";
     } else {
-      provider = 'openai';
-      apiKey = (config.key || "").trim();
-      model = config.model || "gpt-5.2";
+      provider = "openai";
+      apiKey = String(config?.key || "").trim();
+      model = config?.model || "gpt-5.2";
     }
   }
 
-  if (!apiKey || apiKey.length < 5) throw new Error(`${provider.toUpperCase()} API Key is missing or invalid.`);
+  if (!apiKey || apiKey.length < 5) {
+    throw new Error(`${provider.toUpperCase()} API Key is missing or invalid.`);
+  }
 
   const finalImage = normalizeImageToVisionUrl(imageBase64);
   if (!finalImage) {
     return ensureNonEmptyResult([], "Image base64 is missing or invalid.");
   }
 
-  console.log(`[Quick Scan] Identifying matches via ${provider.toUpperCase()}...`);
+  console.log(`[Quick Scan] Identifying matches via ${provider.toUpperCase()} (Netlify BYOK proxy)...`);
 
   try {
     let content = "";
 
-    if (provider === 'openai') {
-      const payload = {
+    if (provider === "openai") {
+      const openaiPayload = {
         model,
         messages: [
           {
@@ -271,66 +270,62 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
         response_format: { type: "json_object" },
       };
 
-      const res = await axios.post("/api/openai/chat/completions", payload, {
-        headers: { Authorization: `Bearer ${apiKey}` },
+      const data = await callLlmProxy({
+        provider: "openai",
+        apiKey,
+        model,
+        payload: openaiPayload,
         signal,
       });
-      content = res.data?.choices?.[0]?.message?.content;
 
-    } else if (provider === 'gemini') {
-      // Native Gemini Payload via Proxy
-      // Proxy expects standard OpenAI-like path but we can use the specific gemini endpoint logic if needed,
-      // OR use the proxy's capability to forward.
-      // Assuming /api/gemini/chat/completions maps to https://generativelanguage.googleapis.com/...
-      // The proxy might expect OpenAI format if it's a "transparent" proxy, BUT usually Gemini limits 'image_url' in 'messages'.
-      // Let's use the Google raw format which is more reliable for Gemini 2.0.
+      // Proxy should return OpenAI-like response for openai provider
+      content = data?.choices?.[0]?.message?.content || "";
 
-      // Extract base64 from data URL
-      const base64Data = finalImage.split(',')[1];
-      const mimeType = finalImage.split(';')[0].split(':')[1] || 'image/jpeg';
+    } else if (provider === "gemini") {
+      const base64Data = finalImage.split(",")[1];
+      const mimeType = finalImage.split(";")[0].split(":")[1] || "image/jpeg";
 
       const geminiPayload = {
-        model: model, // proxy uses this path param usually
-        contents: [{
-          parts: [
-            { text: QUICK_SCAN_PROMPT + "\n\nReturn JSON ONLY." },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }],
+        model,
+        contents: [
+          {
+            parts: [
+              { text: QUICK_SCAN_PROMPT + "\n\nReturn JSON ONLY." },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data,
+                },
+              },
+            ],
+          },
+        ],
         generationConfig: {
-          response_mime_type: "application/json"
-        }
+          response_mime_type: "application/json",
+        },
       };
 
-      // Post to Gemini Proxy
-      const res = await axios.post("/api/gemini/models/" + model + ":generateContent", geminiPayload, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        params: { key: apiKey }, // Gemini often needs key in query param too
+      const data = await callLlmProxy({
+        provider: "gemini",
+        apiKey,
+        model,
+        payload: geminiPayload,
         signal,
       });
 
-      // Gemini Response Parsing
-      content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      // Proxy should return Gemini-like response for gemini provider
+      content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     }
 
     if (!content) throw new Error(`Empty response from ${provider}.`);
 
-    // tryParseJson is assumed to be safe; still guard
+    // Defensive parse
     const parsed = tryParseJson(content);
 
     if (!parsed || typeof parsed !== "object") {
       throw new Error("Invalid or empty JSON response from Quick Scan.");
     }
 
-    // Accept either { matches: [...] } or legacy single match object
     const rawMatches = Array.isArray(parsed.matches)
       ? parsed.matches
       : (parsed.team_1 || parsed.team_2 ? [parsed] : []);
@@ -341,11 +336,11 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
 
     const normalized = rawMatches.map(normalizeMatch);
 
-    // De-duplicate by matchId (can happen if the model repeats)
+    // De-duplicate by matchId
     const uniq = [];
     const seen = new Set();
     for (const m of normalized) {
-      if (!seen.has(m.matchId)) {
+      if (m?.matchId && !seen.has(m.matchId)) {
         seen.add(m.matchId);
         uniq.push(m);
       }
@@ -360,15 +355,23 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
       throw new DOMException("Aborted", "AbortError");
     }
 
-    // CRITICAL: Propagate 401 errors so UI can show specific alerts
-    if (e?.response?.status === 401 || e.message?.includes('401')) {
+    const status = e?.response?.status;
+
+    // 401 should bubble for UI alerts
+    if (status === 401 || String(e?.message || "").includes("401")) {
       console.error(`[Quick Scan] 401 Unauthorized (${provider}). Propagating error...`);
       throw e;
     }
 
-    console.error(`[Quick Scan] Failed (${provider}):`, e?.response?.data || e?.message || e);
+    // Avoid dumping sensitive configs
+    const safeMsg =
+      status
+        ? `Status: ${status} - ${JSON.stringify(e?.response?.data || {})}`
+        : (e?.message || "Quick scan failed.");
 
-    return ensureNonEmptyResult([], e?.message || "Quick scan failed.");
+    console.error(`[Quick Scan] Failed (${provider}): ${safeMsg}`);
+
+    return ensureNonEmptyResult([], safeMsg);
   }
 };
 

@@ -12,6 +12,8 @@
  * @module agents/textParser
  */
 
+import { callLlmProxy } from './common/helpers.js';
+
 /**
  * Call OpenAI GPT API to parse unstructured text into match JSON.
  *
@@ -160,38 +162,27 @@ ABSOLUTE RULES:
             response_format: { type: 'json_object' },
         };
 
-        const response = await fetch('/api/openai/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify(payload)
+        const data = await callLlmProxy({
+            provider: 'openai',
+            apiKey,
+            model,
+            payload
         });
 
-        if (!response.ok) {
-            const errText = await response.text().catch(() => '');
-            console.error('[TextParser] GPT API error:', response.status, response.statusText);
-            console.error('[TextParser] Error details:', errText.substring(0, 500));
-            console.warn('[TextParser] Falling back to regex parser due to API error');
-            return parseManualTextInput(text);
-        }
-
-        const data = await response.json();
         const content = data.choices?.[0]?.message?.content || '';
-        
+
         if (!content) {
             console.warn('[TextParser] Empty GPT response, falling back to regex');
             return parseManualTextInput(text);
-        }        console.log('[TextParser] GPT raw response:', content.substring(0, 500));
+        } console.log('[TextParser] GPT raw response:', content.substring(0, 500));
 
         let parsed;
         try {
             parsed = JSON.parse(content);
         } catch {
             const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-                              content.match(/(\{[\s\S]*\})/) ||
-                              content.match(/(\[[\s\S]*\])/);
+                content.match(/(\{[\s\S]*\})/) ||
+                content.match(/(\[[\s\S]*\])/);
             if (jsonMatch) {
                 try {
                     parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);

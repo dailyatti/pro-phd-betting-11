@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import { stripFences, safeStringify, retryAsync } from '../common/helpers.js';
+import { stripFences, safeStringify, retryAsync, callLlmProxy } from '../common/helpers.js';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -495,12 +495,15 @@ export const runStrategist = async (config, blackboardState, bankroll, signal) =
   };
 
   return await retryAsync(async () => {
-    const res = await axios.post('/api/openai/chat/completions', payload, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+    const data = await callLlmProxy({
+      provider: 'openai',
+      apiKey,
+      model,
+      payload,
       signal,
-      timeout: timeoutMs
+      timeoutMs
     });
-    const content = res.data.choices?.[0]?.message?.content;
+    const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty response from Strategist.");
 
     // Hardened parsing

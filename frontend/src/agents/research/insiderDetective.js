@@ -8,7 +8,7 @@
  */
 
 import axios from 'axios';
-import { tryParseJson, safeStringify, isAbortError, retryAsync } from '../common/helpers.js';
+import { tryParseJson, safeStringify, isAbortError, retryAsync, callLlmProxy } from '../common/helpers.js';
 import { getInsiderPrompt } from '../common/prompts/insider.js';
 
 // ============================================================================
@@ -157,13 +157,17 @@ AFTER executing the above, proceed with standard intel gathering:
     try {
         return await retryAsync(async () => {
             console.log('[Insider Detective] Sending request to Perplexity...');
-            const res = await axios.post('/api/perplexity/chat/completions', payload, {
-                headers: { 'Authorization': `Bearer ${apiKey}` },
+            console.log('[Insider Detective] Sending request to Perplexity...');
+            const data = await callLlmProxy({
+                provider: 'perplexity',
+                apiKey,
+                model,
+                payload,
                 signal
             });
 
-            console.log('[Insider Detective] Response received. Citations:', (res?.data?.citations || []).length);
-            return normalizeInsiderResponse(res);
+            console.log('[Insider Detective] Response received. Citations:', (data?.citations || []).length);
+            return normalizeInsiderResponse({ data });
         }, [], 2);
     } catch (e) {
         if (isAbortError(e, signal)) {
@@ -176,11 +180,14 @@ AFTER executing the above, proceed with standard intel gathering:
             console.warn(`[Insider Detective] Model ${model} failed. Retrying with sonar-pro...`);
             try {
                 const retryPayload = { ...payload, model: 'sonar-pro' };
-                const res = await axios.post('/api/perplexity/chat/completions', retryPayload, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` },
+                const data = await callLlmProxy({
+                    provider: 'perplexity',
+                    apiKey,
+                    model: 'sonar-pro',
+                    payload: retryPayload,
                     signal
                 });
-                return normalizeInsiderResponse(res);
+                return normalizeInsiderResponse({ data });
             } catch (retryErr) {
                 console.error('[Insider Detective] Retry failed:', retryErr.message);
             }

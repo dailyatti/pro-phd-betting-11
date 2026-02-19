@@ -7,7 +7,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { runVisionScraper, runVisionRescue } from '../agents';
-import { runPerplexityDirectedLoop } from '../agents/perplexityDirectedLoop';
+import { runPerplexityDirectedLoop } from '../agents/orchestrator.js';
 import { hasPrimaryOdds } from '../agents/vision/utils/matchValidator.js';
 
 /**

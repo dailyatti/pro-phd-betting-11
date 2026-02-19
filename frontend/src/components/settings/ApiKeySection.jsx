@@ -34,11 +34,11 @@ export const TestConnectionButton = ({ provider, apiKey, model, darkMode }) => {
                     max_tokens: 5
                 };
             } else if (provider === 'gemini') {
-                url = '/api/gemini/chat/completions';
+                const geminiModel = model || 'gemini-2.0-flash';
+                url = `/api/gemini/models/${geminiModel}:generateContent?key=${apiKey}`;
                 body = {
-                    model: model || 'gemini-1.5-flash',
-                    messages: [{ role: 'user', content: 'Hello (test)' }],
-                    max_tokens: 5
+                    contents: [{ parts: [{ text: 'Hello (test)' }] }],
+                    generationConfig: { maxOutputTokens: 5 }
                 };
             } else {
                 throw new Error('Unknown provider');

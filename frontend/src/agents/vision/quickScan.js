@@ -229,7 +229,7 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
 
   if (typeof config === "string") {
     apiKey = config;
-    model = "gpt-5.2";
+    model = "gpt-4o";
   } else {
     // Dynamic provider selection
     if (config.provider === 'gemini') {
@@ -239,7 +239,10 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
     } else {
       provider = 'openai';
       apiKey = (config.key || "").trim();
-      model = config.model || "gpt-4o";
+      let rawModel = config.model || "gpt-4o";
+      // Auto-correct legacy/invalid model names (mirrors apiManager logic)
+      if (rawModel === 'gpt-5.2' || rawModel === 'gpt-5.2-pro') rawModel = 'gpt-4o';
+      model = rawModel;
     }
   }
 

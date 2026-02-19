@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '' };
-const DEFAULT_MODELS = { openai: 'gpt-5.2', perplexity: 'sonar-pro', gemini: 'gemini-2.5-flash-preview-05-20', visionProvider: 'openai' };
+const DEFAULT_MODELS = { openai: 'gpt-4o', perplexity: 'sonar-pro', gemini: 'gemini-2.5-flash-preview-05-20', visionProvider: 'openai' };
 const DEFAULT_CUSTOM_MODELS = { openai: [], perplexity: [], gemini: [] };
 
 

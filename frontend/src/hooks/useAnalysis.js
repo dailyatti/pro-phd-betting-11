@@ -202,7 +202,8 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
 
                     // Run Vision Scraper
                     // Vision depends on OpenAI.
-                    const visionModel = modelSettings?.openai || 'gpt-5.2';
+                    let visionModel = modelSettings?.openai || 'gpt-4o';
+                    if (visionModel === 'gpt-5.2' || visionModel === 'gpt-5.2-pro') visionModel = 'gpt-4o';
                     console.log(`[useAnalysis] Running Vision Scraper with model: ${visionModel}`);
 
                     const matchData = await runVisionScraper(
@@ -387,7 +388,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                         userModelItems: {},
                         openaiParams: {
                             apiKey: apiKeys.openai,
-                            model: modelSettings.openai || 'gpt-5.2',
+                            model: (modelSettings.openai === 'gpt-5.2' || modelSettings.openai === 'gpt-5.2-pro') ? 'gpt-4o' : (modelSettings.openai || 'gpt-4o'),
                         },
                         perplexityParams: apiKeys.perplexity ? {
                             apiKey: apiKeys.perplexity,
@@ -415,7 +416,7 @@ export const useAnalysis = ({ apiKeys, modelSettings, updateBlackboard, isMounte
                     return {
                         matchLabel: groupLabel,
                         sport: sport,
-                        model_used: modelSettings.openai || 'gpt-5.2',
+                        model_used: (modelSettings.openai === 'gpt-5.2' || modelSettings.openai === 'gpt-5.2-pro') ? 'gpt-4o' : (modelSettings.openai || 'gpt-4o'),
                         evidence: orchestratorResult.evidence_log,
                         rounds: orchestratorResult.rounds_used,
                         ...orchestratorResult

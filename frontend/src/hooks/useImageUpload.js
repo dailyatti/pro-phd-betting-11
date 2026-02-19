@@ -85,7 +85,10 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
                         // Prefer OpenAI if available (as per user preference for GPT), else Gemini
                         if (hasOpenAI) {
                             // FIX: Explicitly set provider: 'openai'
-                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-4o' };
+                            let openaiModel = modelSettings?.openai || 'gpt-4o';
+                            // Auto-correct legacy/invalid model names
+                            if (openaiModel === 'gpt-5.2' || openaiModel === 'gpt-5.2-pro') openaiModel = 'gpt-4o';
+                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: openaiModel };
                         } else {
                             scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings?.gemini };
                         }
@@ -142,15 +145,22 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
                     } catch (e) {
                         console.error('[Quick Scan] Error details:', e);
 
-                        // User-friendly error for 401
-                        if (e.message?.includes('401') || e.response?.status === 401) {
-                            // Extract specific error if available
-                            let specificError = "No specific details returned.";
-                            if (e.response?.data?.error?.message) specificError = e.response.data.error.message;
-                            else if (e.response?.data?.message) specificError = e.response.data.message;
-                            else if (typeof e.response?.data === 'string') specificError = e.response.data.slice(0, 200);
+                        // Extract error details for user feedback
+                        const status = e?.response?.status;
+                        let specificError = e.message || "Unknown error";
+                        if (e.response?.data?.error?.message) specificError = e.response.data.error.message;
+                        else if (e.response?.data?.message) specificError = e.response.data.message;
+                        else if (typeof e.response?.data === 'string') specificError = e.response.data.slice(0, 300);
 
-                            alert(`⚠️ API ERROR: OpenAI Rejected Key (401).\n\nServer Message: "${specificError}"\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.`);
+                        if (status === 401) {
+                            alert(`⚠️ API ERROR: Key Rejected (401).\n\nServer Message: "${specificError}"\n\nTroubleshooting:\n1. If using a 'Service Account Key' (sk-svc...), verify it has 'Model Capabilities' enabled.\n2. Try generating a standard 'Project Key' (sk-proj...).\n3. Ensure you are not restricted by Organization policies.`);
+                        } else if (status === 404 || specificError.includes('model')) {
+                            alert(`⚠️ MODEL ERROR (${status || 'N/A'}): The selected model may not exist or is not accessible.\n\nServer Message: "${specificError}"\n\nFix: Go to Configuration and select a valid model (e.g., gpt-4o).`);
+                        } else if (status) {
+                            alert(`⚠️ API ERROR (${status}): Quick Scan failed.\n\nServer Message: "${specificError}"\n\nCheck your API key and model settings in Configuration.`);
+                        } else {
+                            // Network error / no response (proxy down, CORS, etc.)
+                            alert(`⚠️ NETWORK ERROR: Could not reach the API.\n\nDetails: "${specificError}"\n\nPossible causes:\n1. The Netlify proxy may not be deployed correctly.\n2. Check your internet connection.\n3. Try reloading the page.`);
                         }
 
                         // Fallback: create unknown group

@@ -227,7 +227,7 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
 
   if (typeof config === "string") {
     apiKey = config.trim();
-    model = "gpt-5.2";
+    model = "gpt-4o";
   } else {
     if (config?.provider === "gemini") {
       provider = "gemini";
@@ -236,7 +236,7 @@ export const runQuickMatchScan = async (config, imageBase64, signal) => {
     } else {
       provider = "openai";
       apiKey = String(config?.key || "").trim();
-      model = config?.model || "gpt-5.2";
+      model = config?.model || "gpt-4o";
     }
   }
 

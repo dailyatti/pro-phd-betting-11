@@ -59,7 +59,7 @@ export const useSettings = () => {
     // AI Model settings
     const [modelSettings, setModelSettings] = useState(() => {
         const defaults = {
-            openai: 'gpt-5.2',
+            openai: 'gpt-4o',
             perplexity: 'sonar-pro',
             gemini: 'gemini-2.0-flash',
             openaiEnabled: true,

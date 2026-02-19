@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_KEYS = { openai: '', perplexity: '', gemini: '' };
-const DEFAULT_MODELS = { openai: 'gpt-5.2', perplexity: 'sonar-pro', gemini: 'gemini-2.5-flash-preview-05-20', visionProvider: 'openai' };
+const DEFAULT_MODELS = { openai: 'gpt-4o', perplexity: 'sonar-pro', gemini: 'gemini-2.5-flash-preview-05-20', visionProvider: 'openai' };
 const DEFAULT_CUSTOM_MODELS = { openai: [], perplexity: [], gemini: [] };
 
 
@@ -119,8 +119,8 @@ const SettingsModal = ({
     const baseModelOptions = useMemo(() => ({
         openai: [
             'gpt-5-mini-2025-08-07',
-            'gpt-5.2',
-            'gpt-5.2-pro',
+            'gpt-4o',
+            'gpt-4o-pro',
             'gpt-4.1',
             'gpt-4.1-mini',
             'gpt-4o',

@@ -137,7 +137,7 @@ export class APIManager {
             case 'openai':
                 if (this.hasOpenAI()) {
                     const cfg = this.config.openai;
-                    let targetModel = cfg.model || 'gpt-5.2';
+                    let targetModel = cfg.model || 'gpt-4o';
                     return { provider: 'openai', apiKey: cfg.apiKey, model: targetModel };
                 }
                 break;

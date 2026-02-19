@@ -337,10 +337,15 @@ export const callLlmProxy = async ({ provider, apiKey, model, payload, signal, t
             throw new Error(`[callLlmProxy] Unknown provider: ${provider}`);
     }
 
-    const res = await axios.post(url, body, {
+    const config = {
         headers,
-        signal,
         timeout: timeoutMs,
-    });
+    };
+
+    if (signal) {
+        config.signal = signal;
+    }
+
+    const res = await axios.post(url, body, config);
     return res.data;
 };

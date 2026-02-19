@@ -219,6 +219,15 @@ export default async (req, context) => {
 
         // Build response headers
         const resHeaders = new Headers(response.headers);
+
+        // CRITICAL FIX: fetch automatically decompresses body, but keeps content-encoding header.
+        // We must strip it so the browser doesn't try to double-decompress and throw JSON parse errors.
+        resHeaders.delete("content-encoding");
+        resHeaders.delete("content-length");
+
+        // Strip upstream cookies (like Cloudflare's __cf_bm) to prevent invalid domain warnings
+        resHeaders.delete("set-cookie");
+
         for (const [key, value] of Object.entries(corsHeaders)) {
             resHeaders.set(key, value);
         }

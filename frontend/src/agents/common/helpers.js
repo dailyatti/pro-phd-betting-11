@@ -274,32 +274,66 @@ export const n = (x, fallback = 0) => {
 // ============================================================================
 
 /**
- * Unified Netlify Function proxy:
- * POST /.netlify/functions/llm
- * Header: X-User-Api-Key: <USER_KEY>
- * Body: { provider, model, payload }
- * 
+ * Unified BYOK API Proxy:
+ * Routes requests through /api/{provider}/* which forwards to the upstream API.
+ * The user's API key is sent via the Authorization header.
+ *
+ * Provider endpoint mapping:
+ *   openai     -> /api/openai/chat/completions
+ *   perplexity -> /api/perplexity/chat/completions
+ *   gemini     -> /api/gemini/models/{model}:generateContent
+ *
  * @param {Object} params
- * @param {string} params.provider - 'openai', 'anthropic', 'perplexity', 'gemini'
+ * @param {string} params.provider - 'openai', 'perplexity', 'gemini'
  * @param {string} params.apiKey - User provided API key
  * @param {string} params.model - Model identifier
- * @param {Object} params.payload - Provider specific payload
+ * @param {Object} params.payload - Provider-specific payload
  * @param {AbortSignal} [params.signal] - Optional abort signal
  * @param {number} [params.timeoutMs] - Optional timeout (default 90000)
  * @returns {Promise<any>} Response data from the provider
  */
 export const callLlmProxy = async ({ provider, apiKey, model, payload, signal, timeoutMs = 90000 }) => {
-    const res = await axios.post(
-        "/.netlify/functions/llm",
-        { provider, model, payload },
-        {
-            headers: {
-                "Content-Type": "application/json",
-                "X-User-Api-Key": String(apiKey || "").trim(),
-            },
-            signal,
-            timeout: timeoutMs,
+    const key = String(apiKey || "").trim();
+    if (!key) throw new Error(`[callLlmProxy] No API key provided for ${provider}`);
+
+    let url;
+    let headers = { "Content-Type": "application/json" };
+    let body;
+
+    switch (provider) {
+        case 'openai':
+            url = '/api/openai/chat/completions';
+            headers["Authorization"] = `Bearer ${key}`;
+            body = payload;
+            break;
+
+        case 'perplexity':
+            url = '/api/perplexity/chat/completions';
+            headers["Authorization"] = `Bearer ${key}`;
+            body = payload;
+            break;
+
+        case 'gemini': {
+            const m = model || payload?.model || 'gemini-2.0-flash';
+            url = `/api/gemini/models/${m}:generateContent?key=${encodeURIComponent(key)}`;
+            // Gemini uses API key in URL, not Authorization header
+            body = {
+                contents: payload?.contents,
+                generationConfig: payload?.generationConfig,
+            };
+            // Include tools if present (e.g., google_search_retrieval for grounding)
+            if (payload?.tools) body.tools = payload.tools;
+            break;
         }
-    );
+
+        default:
+            throw new Error(`[callLlmProxy] Unknown provider: ${provider}`);
+    }
+
+    const res = await axios.post(url, body, {
+        headers,
+        signal,
+        timeout: timeoutMs,
+    });
     return res.data;
 };

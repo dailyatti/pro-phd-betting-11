@@ -9,6 +9,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { runQuickMatchScan } from '../agents';
 
 const MAX_IMAGES_PER_GROUP = 15;
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 /**
  * Manages image uploads, grouping, and quick scanning.
@@ -46,6 +49,18 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
     const handleFile = useCallback(
         async (file) => {
             if (!file) return;
+
+            // Validate file type
+            if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+                setError(`Unsupported file type: ${file.type}. Use JPEG, PNG, WebP, or GIF.`);
+                return;
+            }
+
+            // Validate file size
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                setError(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is ${MAX_FILE_SIZE_MB}MB.`);
+                return;
+            }
 
             const imageId = genId();
             const objectUrl = URL.createObjectURL(file);
@@ -186,6 +201,13 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
         (groupId, file) => {
             if (!file) return;
 
+            if (!ALLOWED_IMAGE_TYPES.has(file.type) || file.size > MAX_FILE_SIZE_BYTES) {
+                setError(file.size > MAX_FILE_SIZE_BYTES
+                    ? `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max ${MAX_FILE_SIZE_MB}MB.`
+                    : `Unsupported file type: ${file.type}`);
+                return;
+            }
+
             const imageId = genId();
             const objectUrl = URL.createObjectURL(file);
             activeUrlsRef.current.add(objectUrl);
@@ -213,7 +235,7 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
             // FIX: Start reading AFTER setting handlers
             reader.readAsDataURL(file);
         },
-        [genId, isMountedRef]
+        [genId, isMountedRef, setError]
     );
 
     // Remove image from a group

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Key, Save, CheckCircle, ExternalLink, Cpu, Plus, ShieldCheck, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { saveKeysEncrypted, isVaultSupported } from '../utils/keyVault';
 
 const STORAGE_KEYS = {
-    apiKeys: 'phd_betting_api_keys',
     models: 'phd_betting_models',
     customModels: 'phd_betting_custom_models'
 };
@@ -163,6 +163,17 @@ const ConfigurationPage = ({
     const [localModels, setLocalModels] = useState({ ...DEFAULT_MODELS, ...modelSettings });
     const [saved, setSaved] = useState(false);
 
+    // Sync from parent when keys load from encrypted vault (async)
+    useEffect(() => {
+        if (apiKeys && (apiKeys.openai || apiKeys.perplexity || apiKeys.gemini)) {
+            setLocalKeys(prev => {
+                const hasAny = prev.openai || prev.perplexity || prev.gemini;
+                if (hasAny) return prev; // Don't override user edits
+                return { ...DEFAULT_KEYS, ...apiKeys };
+            });
+        }
+    }, [apiKeys]);
+
     // Custom model UI toggles + inputs
     const [showCustomOpenai, setShowCustomOpenai] = useState(false);
     const [showCustomPerplexity, setShowCustomPerplexity] = useState(false);
@@ -173,20 +184,13 @@ const ConfigurationPage = ({
     const [customModels, setCustomModels] = useState(DEFAULT_CUSTOM_MODELS);
 
     // Load from localStorage once (initial mount)
+    // API keys are loaded from parent (useSettings handles encrypted vault)
     useEffect(() => {
-        const storedKeysStr = localStorage.getItem(STORAGE_KEYS.apiKeys);
         const storedModelsStr = localStorage.getItem(STORAGE_KEYS.models);
         const storedCustomModelsStr = localStorage.getItem(STORAGE_KEYS.customModels);
 
-        const storedKeys = storedKeysStr ? safeParse(storedKeysStr, DEFAULT_KEYS) : null;
         const storedModels = storedModelsStr ? safeParse(storedModelsStr, DEFAULT_MODELS) : null;
         const storedCustom = storedCustomModelsStr ? safeParse(storedCustomModelsStr, DEFAULT_CUSTOM_MODELS) : null;
-
-        if (storedKeys) {
-            const merged = { ...DEFAULT_KEYS, ...storedKeys };
-            setLocalKeys(merged);
-            if (setApiKeys) setApiKeys(merged);
-        }
 
         if (storedModels) {
             // MIGRATION: Fix invalid Perplexity model names from old versions
@@ -293,8 +297,13 @@ const ConfigurationPage = ({
         ? 'bg-black border-subtle text-primary placeholder-tertiary focus:border-cyan/50'
         : 'bg-white border-subtle text-primary placeholder-tertiary shadow-sm focus:border-blue-400';
 
-    const persistAll = useCallback((keysToSave, modelsToSave, customToSave) => {
-        localStorage.setItem(STORAGE_KEYS.apiKeys, JSON.stringify(keysToSave));
+    const persistAll = useCallback(async (keysToSave, modelsToSave, customToSave) => {
+        // Save keys encrypted via vault
+        if (isVaultSupported()) {
+            await saveKeysEncrypted(keysToSave);
+        } else {
+            localStorage.setItem('phd_betting_api_keys', JSON.stringify(keysToSave));
+        }
         localStorage.setItem(STORAGE_KEYS.models, JSON.stringify(modelsToSave));
         localStorage.setItem(STORAGE_KEYS.customModels, JSON.stringify(customToSave));
     }, []);
@@ -318,7 +327,7 @@ const ConfigurationPage = ({
         setIsDirty(keysChanged || modelsChanged);
     }, [localKeys, localModels, apiKeys, modelSettings, setIsDirty]);
 
-    const handleSave = useCallback(() => {
+    const handleSave = useCallback(async () => {
         const keysToSave = { ...DEFAULT_KEYS, ...localKeys };
         const modelsToSave = { ...DEFAULT_MODELS, ...localModels };
         const customToSave = {
@@ -327,7 +336,7 @@ const ConfigurationPage = ({
             gemini: dedupe(customModels.gemini),
         };
 
-        persistAll(keysToSave, modelsToSave, customToSave);
+        await persistAll(keysToSave, modelsToSave, customToSave);
 
         if (setApiKeys) setApiKeys(keysToSave);
         if (setModelSettings) setModelSettings(modelsToSave);
@@ -417,9 +426,9 @@ const ConfigurationPage = ({
                             <ShieldCheck size={20} />
                         </div>
                         <div className="relative z-10">
-                            <h4 className={`font-bold text-sm mb-1.5 tracking-wide ${darkMode ? 'text-emerald-100' : 'text-slate-800'}`}>Local & Secure Storage</h4>
+                            <h4 className={`font-bold text-sm mb-1.5 tracking-wide ${darkMode ? 'text-emerald-100' : 'text-slate-800'}`}>Encrypted Local Storage (BYOK)</h4>
                             <p className={`text-xs leading-relaxed max-w-lg ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                                Your keys are encrypted in your browser's local storage (`phd_betting_api_keys`). We never transmit them to any backend server—they communicate directly with AI providers.
+                                Your keys are encrypted with AES-256-GCM and stored locally in your browser. They are sent only to AI providers (OpenAI, Perplexity, Google) via our secure HTTPS proxy — never stored on any server.
                             </p>
                         </div>
                         {/* Decorative background element */}

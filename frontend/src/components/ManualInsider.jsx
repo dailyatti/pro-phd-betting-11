@@ -136,6 +136,7 @@ const ManualInsider = ({
               value={manualIntelText}
               onChange={(e) => setManualIntelText(e.target.value)}
               placeholder="Paste leaked intel here..."
+              maxLength={12000}
               className={clsxButton(
                 "w-full h-24 rounded-xl border p-3 text-xs font-mono focus:border-purple-500 focus:outline-none resize-none transition-colors",
                 darkMode

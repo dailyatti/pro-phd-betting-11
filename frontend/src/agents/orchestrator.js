@@ -21,8 +21,8 @@
  *   -> Final output becomes INFO with odds 0 and explicit note (per prompt).
  */
 
-import axios from "axios";
 import { retryAsync, safeStringify, tryParseJson, callLlmProxy } from "./common/helpers.js";
+import logger from "../utils/logger.js";
 import { selectFormulas } from "../engine/phd/formulaSelector.js";
 import { getFormula } from "../engine/phd/registry.js";
 import { normalizeSport } from "../engine/phd/utils/normalizeSport.js";
@@ -359,7 +359,7 @@ async function processSingleMatch({
     let rounds = 0;
     const MAX_ROUNDS = 2;
 
-    console.log(`[Orchestrator] Starting directed research loop for ${labeled.matchLabel} (max ${MAX_ROUNDS} rounds)`);
+    logger.debug(`[Orchestrator] Starting directed research loop for ${labeled.matchLabel} (max ${MAX_ROUNDS} rounds)`);
 
     while (rounds < MAX_ROUNDS) {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -372,7 +372,7 @@ async function processSingleMatch({
             "{PREVIOUS_FINDINGS}": findingsStr,
         });
 
-        console.log(`[Orchestrator] Round ${rounds + 1}/${MAX_ROUNDS}: Calling Planner (GPT)...`);
+        logger.debug(`[Orchestrator] Round ${rounds + 1}/${MAX_ROUNDS}: Calling Planner...`);
 
         const planRes = await callOpenAI({
             apiKey: openAIKey,
@@ -409,10 +409,7 @@ async function processSingleMatch({
             .filter(Boolean)
             .slice(0, 5);
 
-        console.log(
-            `[Orchestrator] Round ${rounds + 1}: Planner generated ${SAFE_QUERIES.length} queries:`,
-            SAFE_QUERIES.map((q) => q.slice(0, 60))
-        );
+        logger.debug(`[Orchestrator] Round ${rounds + 1}: ${SAFE_QUERIES.length} queries generated`);
 
         try {
             const researchResults = await Promise.all(
@@ -441,7 +438,7 @@ async function processSingleMatch({
     if (isOddsMissing || Object.keys(labeled.odds || {}).length === 0) {
         const recovered = extractOddsFromResearch(evidenceLog, labeled.team_1, labeled.team_2);
         if (recovered) {
-            console.log("[Orchestrator] Injecting recovered odds:", recovered);
+            logger.debug("[Orchestrator] Injecting recovered odds");
             labeled.odds = { ...labeled.odds, ...recovered, oddsMissing: false };
             evidenceLog.push({
                 round: "SYSTEM",
@@ -452,9 +449,7 @@ async function processSingleMatch({
     }
 
     // 2) Formula selection
-    console.log(
-        `[Orchestrator] Research complete (${rounds} rounds, ${evidenceLog.length} evidence items). Starting Formula Selection...`
-    );
+    logger.debug(`[Orchestrator] Research complete (${rounds} rounds, ${evidenceLog.length} items). Formula Selection...`);
 
     let formulaSelection;
     try {
@@ -566,7 +561,7 @@ async function processSingleMatch({
     }
 
     // 5) Final synthesis
-    console.log(`[Orchestrator] Starting Final Synthesis for ${labeled.matchLabel}...`);
+    logger.debug(`[Orchestrator] Final Synthesis for ${labeled.matchLabel}...`);
 
     const finalRes = await callOpenAI({
         apiKey: openAIKey,
@@ -790,7 +785,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
     // 1) Perplexity primary
     if (hasValidKey(pplxKey)) {
         try {
-            console.log(`[Orchestrator] PERFORMING RESEARCH via Perplexity (proxy)... Query: "${String(query).slice(0, 80)}..."`);
+            logger.debug(`[Orchestrator] Research via Perplexity...`);
 
             const systemContent = matchInfo
                 ? `You are a factual sports researcher. Be concise, precise, and data-driven. ${matchInfo}`
@@ -815,7 +810,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
                 });
 
                 const content = data?.choices?.[0]?.message?.content || "";
-                console.log(`[Orchestrator] Perplexity Result (${content.length} chars)`);
+                logger.debug(`[Orchestrator] Perplexity result: ${content.length} chars`);
                 return `[SOURCE: PERPLEXITY]\n${content}`;
             }, [], 2);
         } catch (err) {
@@ -827,7 +822,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
     // 2) Gemini secondary (text answer; “search/grounding” = Netlify function responsibility)
     if (geminiEnabled && hasValidKey(geminiKey)) {
         try {
-            console.log(`[Orchestrator] PERFORMING RESEARCH via Gemini (proxy)... Query: "${String(query).slice(0, 80)}..."`);
+            logger.debug(`[Orchestrator] Research via Gemini...`);
 
             const prompt =
                 (matchInfo ? `${matchInfo}\n\n` : "") +
@@ -863,7 +858,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
 
     // 3) OpenAI fallback
     if (hasValidKey(openAIKey)) {
-        console.log("[Orchestrator] Using GPT for Research (Fallback - Offline Mode)");
+        logger.debug("[Orchestrator] Using GPT for Research (Fallback)");
         const content = await callOpenAI({
             apiKey: openAIKey,
             model: resolvedOpenAIModel,

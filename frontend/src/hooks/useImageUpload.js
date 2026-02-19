@@ -95,24 +95,35 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
                 if (hasOpenAI || hasGemini) {
                     setIsScanning(true);
                     try {
-                        let scanConfig;
+                        let scanResults;
+                        let scanError = null;
 
-                        // Prefer OpenAI if available (as per user preference for GPT), else Gemini
+                        // 1. Try OpenAI first if available
                         if (hasOpenAI) {
-                            // FIX: Explicitly set provider: 'openai'
-                            scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-5.2' };
-                        } else {
-                            scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings?.gemini };
+                            const scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-5.2' };
+                            try {
+                                scanResults = await runQuickMatchScan(scanConfig, rawBase64, null);
+                            } catch (e) {
+                                console.warn(`[ImageUpload] OpenAI scan failed:`, e?.message || e);
+                                scanError = e;
+                            }
                         }
 
-                        const scanResults = await runQuickMatchScan(
-                            scanConfig,
-                            rawBase64,
-                            null // no abort signal for quick scan
-                        );
+                        // 2. Fallback to Gemini if OpenAI failed (e.g 401 Unauthorized) or was missing
+                        if ((!scanResults || scanResults.length === 0) && hasGemini) {
+                            if (scanError) console.log(`[ImageUpload] Falling back to Gemini after OpenAI failure...`);
+                            const scanConfig = { provider: 'gemini', key: apiKeys.gemini.trim(), model: modelSettings?.gemini };
+                            try {
+                                scanResults = await runQuickMatchScan(scanConfig, rawBase64, null);
+                                scanError = null; // Clear error since fallback succeeded
+                            } catch (e) {
+                                console.warn(`[ImageUpload] Gemini scan failed:`, e?.message || e);
+                                scanError = e || scanError;
+                            }
+                        }
 
                         if (!scanResults || scanResults.length === 0) {
-                            throw new Error('Quick scan returned no matches.');
+                            throw scanError || new Error('Quick scan returned no matches.');
                         }
 
                         // FORCE SCANNING OFF (Safety)

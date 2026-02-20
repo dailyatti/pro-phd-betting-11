@@ -257,9 +257,9 @@ async function processSingleMatch({
             const safeIntel = safeJsonDataBlock(manualIntel, 12000);
             const valPrompt = PROMPT_VALIDATE_INTEL.replace("{INPUT_TEXT}", safeIntel);
 
-            const valRes = await callOpenAI({
-                apiKey: openAIKey,
-                model: resolvedModel,
+            const valRes = await callAgentLlm({
+                openaiParams,
+                geminiParams,
                 system: "You are a strict JSON-only content quality filter.",
                 user: valPrompt,
                 jsonMode: true,
@@ -374,9 +374,9 @@ async function processSingleMatch({
 
         logger.debug(`[Orchestrator] Round ${rounds + 1}/${MAX_ROUNDS}: Calling Planner...`);
 
-        const planRes = await callOpenAI({
-            apiKey: openAIKey,
-            model: resolvedModel,
+        const planRes = await callAgentLlm({
+            openaiParams,
+            geminiParams,
             system: "You are a precise betting strategist. Output ONLY JSON.",
             user: planPrompt,
             jsonMode: true,
@@ -457,9 +457,9 @@ async function processSingleMatch({
             matchContext: labeled,
             researchData: evidenceLog,
             callGPT: async ({ system, user, jsonMode }) =>
-                callOpenAI({
-                    apiKey: openAIKey,
-                    model: resolvedModel,
+                callAgentLlm({
+                    openaiParams,
+                    geminiParams,
                     system,
                     user,
                     jsonMode,
@@ -539,9 +539,9 @@ async function processSingleMatch({
     let verificationNote = "";
 
     try {
-        const verifyRes = await callOpenAI({
-            apiKey: openAIKey,
-            model: resolvedModel,
+        const verifyRes = await callAgentLlm({
+            openaiParams,
+            geminiParams,
             system: "Strict mathematical auditor. Output ONLY JSON.",
             user: replaceAllTokens(PROMPT_VERIFY_ENGINE, {
                 "{MATCH_CONTEXT}": contextStr,
@@ -563,9 +563,9 @@ async function processSingleMatch({
     // 5) Final synthesis
     logger.debug(`[Orchestrator] Final Synthesis for ${labeled.matchLabel}...`);
 
-    const finalRes = await callOpenAI({
-        apiKey: openAIKey,
-        model: resolvedModel,
+    const finalRes = await callAgentLlm({
+        openaiParams,
+        geminiParams,
         system: "PhD-level betting analyst. Output ONLY JSON.",
         user: replaceAllTokens(PROMPT_FINAL_SYNTHESIS, {
             "{MATCH_CONTEXT}": contextStr,
@@ -735,34 +735,80 @@ async function processSingleMatch({
 // API HELPERS
 // ============================================================
 
-async function callOpenAI({ apiKey, model, system, user, jsonMode, maxTokens, signal }) {
-    requireKey("OpenAI", apiKey);
+async function callAgentLlm({ openaiParams, geminiParams, system, user, jsonMode, maxTokens, signal }) {
+    const { apiKey: openAIKey, orchestratorModel, model: openaiModel } = openaiParams || {};
+    const { apiKey: geminiKey, model: geminiModel } = geminiParams || {};
 
-    const targetModel = model || "gpt-4.1";
-    const payload = {
-        model: targetModel,
-        messages: [
-            { role: "system", content: system || "" },
-            { role: "user", content: user || "" },
-        ],
-        max_completion_tokens: Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 2000,
-    };
+    let lastError = null;
 
-    if (jsonMode) payload.response_format = { type: "json_object" };
+    if (hasValidKey(openAIKey)) {
+        try {
+            const targetModel = orchestratorModel || openaiModel || "gpt-4o";
+            const payload = {
+                model: targetModel,
+                messages: [
+                    { role: "system", content: system || "" },
+                    { role: "user", content: user || "" },
+                ],
+                max_completion_tokens: Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 2000,
+            };
 
-    return retryAsync(async () => {
-        // ✅ Netlify BYOK proxy call
-        const data = await callLlmProxy({
-            provider: "openai",
-            apiKey,
-            model: targetModel,
-            payload,
-            signal,
-            timeoutMs: 90000,
-        });
+            if (jsonMode) payload.response_format = { type: "json_object" };
 
-        return data?.choices?.[0]?.message?.content || "{}";
-    }, [], 2);
+            return await retryAsync(async () => {
+                // ✅ Netlify BYOK proxy call
+                const data = await callLlmProxy({
+                    provider: "openai",
+                    apiKey: openAIKey,
+                    model: targetModel,
+                    payload,
+                    signal,
+                    timeoutMs: 90000,
+                });
+
+                return data?.choices?.[0]?.message?.content || "{}";
+            }, [], 2);
+        } catch (e) {
+            console.warn(`[Orchestrator] OpenAI failed during agent call:`, e?.message || e);
+            lastError = e;
+        }
+    }
+
+    if (hasValidKey(geminiKey)) {
+        try {
+            if (lastError) console.info(`[Orchestrator] Attempting Gemini fallback for agent call...`);
+
+            const targetModel = geminiModel || "gemini-2.0-flash";
+            const prompt = `System Instructions:\n${system}\n\nUser Input:\n${user}`;
+            const payload = {
+                model: targetModel,
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    maxOutputTokens: Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 2000,
+                }
+            };
+
+            if (jsonMode) payload.generationConfig.response_mime_type = "application/json";
+
+            return await retryAsync(async () => {
+                const data = await callLlmProxy({
+                    provider: "gemini",
+                    apiKey: geminiKey,
+                    model: targetModel,
+                    payload,
+                    signal,
+                    timeoutMs: 90000,
+                });
+                return data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            }, [], 2);
+        } catch (e) {
+            console.warn(`[Orchestrator] Gemini agent call failed:`, e?.message || e);
+            lastError = e || lastError;
+        }
+    }
+
+    if (lastError) throw lastError;
+    throw new Error("No valid LLM configuration found for agent call.");
 }
 
 /**
@@ -858,11 +904,11 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
     }
 
     // 3) OpenAI fallback
-    if (hasValidKey(openAIKey)) {
-        logger.debug("[Orchestrator] Using GPT for Research (Fallback)");
-        const content = await callOpenAI({
-            apiKey: openAIKey,
-            model: resolvedOpenAIModel,
+    if (hasValidKey(openAIKey) || hasValidKey(geminiKey)) {
+        logger.debug("[Orchestrator] Using LLM for Research (Fallback)");
+        const content = await callAgentLlm({
+            openaiParams,
+            geminiParams,
             system: "You are an expert sports analyst with vast internal knowledge. You do NOT have live web access.",
             user:
                 `ANALYSIS TASK: Provide your best assessment for: "${query}"\n\n` +

@@ -180,6 +180,7 @@ export default async (req, context) => {
         // Prepare headers
         const headers = new Headers();
         headers.set("Content-Type", req.headers.get("content-type") || "application/json");
+        headers.set("User-Agent", "PhD-Betting-Proxy/1.0");
 
         if (authHeader) {
             headers.set("Authorization", authHeader);

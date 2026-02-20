@@ -830,11 +830,12 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
                 `Query: ${String(query || "").slice(0, 2000)}\n\n` +
                 `Rules:\n- Prefer concrete facts.\n- If uncertain, say so.\n- Keep it short.\n`;
 
-            // Gemini generateContent payload (text-only)
+            // Gemini generateContent payload (with google search tool)
             const payload = {
                 model: geminiModel || "gemini-2.0-flash",
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { temperature: 0.2 },
+                tools: [{ googleSearch: {} }],
             };
 
             const data = await callLlmProxy({

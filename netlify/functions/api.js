@@ -179,7 +179,6 @@ export default async (req, context) => {
     try {
         // Prepare headers
         const headers = new Headers();
-        headers.set("Host", new URL(config.target).host);
         headers.set("Content-Type", req.headers.get("content-type") || "application/json");
 
         if (authHeader) {

@@ -100,7 +100,7 @@ export const useImageUpload = ({ apiKeys = {}, modelSettings = {}, genId, isMoun
 
                         // 1. Try OpenAI first if available
                         if (hasOpenAI) {
-                            const scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-4o' };
+                            const scanConfig = { provider: 'openai', key: apiKeys.openai.trim(), model: modelSettings?.openai || 'gpt-5.2-2025-12-11' };
                             try {
                                 scanResults = await runQuickMatchScan(scanConfig, rawBase64, null);
                             } catch (e) {

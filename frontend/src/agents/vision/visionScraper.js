@@ -227,7 +227,7 @@ export const runVisionScraper = async (config, imageBase64, signal, contextHint 
 
     if (typeof config === "string") {
         apiKey = config.trim();
-        model = "gpt-4o";
+        model = "gpt-5.2-2025-12-11";
     } else {
         if (config?.provider === "gemini") {
             provider = "gemini";
@@ -236,7 +236,7 @@ export const runVisionScraper = async (config, imageBase64, signal, contextHint 
         } else {
             provider = "openai";
             apiKey = String(config?.key || "").trim();
-            model = config?.model || "gpt-4o";
+            model = config?.model || "gpt-5.2-2025-12-11";
         }
     }
 
@@ -355,7 +355,7 @@ export const runVisionScraper = async (config, imageBase64, signal, contextHint 
 
 export const runVisionRescue = async (config, images, team1, team2, missingMarkets, signal) => {
     const openaiKey = typeof config === "string" ? config.trim() : String(config?.key || "").trim();
-    const openaiModel = typeof config === "object" && config?.model ? config.model : "gpt-4o";
+    const openaiModel = typeof config === "object" && config?.model ? config.model : "gpt-5.2-2025-12-11";
     if (!openaiKey) return null;
 
     const targetList = Array.isArray(missingMarkets) ? missingMarkets.join(", ") : String(missingMarkets || "");

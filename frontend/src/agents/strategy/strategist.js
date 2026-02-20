@@ -450,7 +450,7 @@ export const runStrategist = async (config, blackboardState, bankroll, signal) =
 
   // DYNAMIC MODEL SELECTION
   const detectedSport = (blackboardState.MATCH_DATA?.sport || '').toUpperCase();
-  let model = typeof config === 'string' ? config : (config?.model || 'gpt-4o');
+  let model = typeof config === 'string' ? config : (config?.model || 'gpt-5.2-2025-12-11');
 
   if (!apiKey) throw new Error("OpenAI API Key is missing.");
   console.log(`[Strategist] Synthesizing PhD analysis with ${model} (Sport: ${detectedSport})...`);

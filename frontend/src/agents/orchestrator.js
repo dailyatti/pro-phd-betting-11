@@ -232,7 +232,7 @@ async function processSingleMatch({
         throw new Error("SYSTEM HALTED: No valid API keys found (OpenAI or Gemini required).");
     }
 
-    const resolvedModel = orchestratorModel || openaiModel || "gpt-4.1";
+    const resolvedModel = orchestratorModel || openaiModel || "gpt-5.2-2025-12-11";
 
     const labeled = ensureMatchIdentity(matchData || {});
     labeled.sport = normalizeSport(labeled.sport || "FOOTBALL");
@@ -584,23 +584,35 @@ async function processSingleMatch({
     const finalParsed = tryParseJson(finalRes) || {};
 
     // 6) Post-process recommendations
+    // Priority: Engine recs (with real math) > GPT Final Synthesis recs > fallback
     const engineRecs = Array.isArray(engineOutputWithFormulas?.recommendations)
-        ? engineOutputWithFormulas.recommendations
+        ? engineOutputWithFormulas.recommendations.filter(r => r && (r.selection || r.market))
+        : [];
+    const gptRecs = Array.isArray(finalParsed.recommendations)
+        ? finalParsed.recommendations.filter(r => r && (r.selection || r.market))
         : [];
 
     if (engineRecs.length > 0) {
+        // Engine produced real math-backed recommendations — use those as base
         finalParsed.recommendations = engineRecs.map((rec) => ({
             ...rec,
             matchLabel: labeled.matchLabel,
         }));
-    } else if (!Array.isArray(finalParsed.recommendations)) {
+    } else if (gptRecs.length > 0) {
+        // Engine failed/empty but GPT Final Synthesis produced recommendations — use those
+        finalParsed.recommendations = gptRecs.map((rec) => ({
+            ...rec,
+            matchLabel: labeled.matchLabel,
+        }));
+    } else {
+        // Both empty — create fallback INFO recommendation
         finalParsed.recommendations = [
             {
                 selection: labeled.matchLabel,
                 market: "PROJECTED",
                 odds: 0,
                 recommendation_level: "INFO",
-                reasoning: "Projection only: insufficient data.",
+                reasoning: "Projection only: insufficient data from both math engine and AI synthesis.",
                 matchLabel: labeled.matchLabel,
                 math_proof: { implied_prob: 0, own_prob: 0, edge: 0, kelly: 0 },
             },
@@ -743,7 +755,7 @@ async function callAgentLlm({ openaiParams, geminiParams, system, user, jsonMode
 
     if (hasValidKey(openAIKey)) {
         try {
-            const targetModel = orchestratorModel || openaiModel || "gpt-4o";
+            const targetModel = orchestratorModel || openaiModel || "gpt-5.2-2025-12-11";
             const payload = {
                 model: targetModel,
                 messages: [
@@ -767,7 +779,7 @@ async function callAgentLlm({ openaiParams, geminiParams, system, user, jsonMode
                 });
 
                 return data?.choices?.[0]?.message?.content || "{}";
-            }, [], 2);
+            }, [], 4);
         } catch (e) {
             console.warn(`[Orchestrator] OpenAI failed during agent call:`, e?.message || e);
             lastError = e;
@@ -800,7 +812,7 @@ async function callAgentLlm({ openaiParams, geminiParams, system, user, jsonMode
                     timeoutMs: 90000,
                 });
                 return data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-            }, [], 2);
+            }, [], 4);
         } catch (e) {
             console.warn(`[Orchestrator] Gemini agent call failed:`, e?.message || e);
             lastError = e || lastError;
@@ -822,7 +834,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
     const { apiKey: openAIKey, orchestratorModel, model: openaiModelAlt } = openaiParams || {};
     const { apiKey: geminiKey, model: geminiModel, enabled: geminiEnabled } = geminiParams || {};
 
-    const resolvedOpenAIModel = orchestratorModel || openaiModelAlt || "gpt-4.1";
+    const resolvedOpenAIModel = orchestratorModel || openaiModelAlt || "gpt-5.2-2025-12-11";
 
     const matchInfo = matchContext
         ? `Context: ${matchContext.team_1 || matchContext.homeTeam || ""} vs ${matchContext.team_2 || matchContext.awayTeam || ""} | Sport: ${matchContext.sport || "FOOTBALL"} | Tournament: ${matchContext.tournament || "Unknown"} | Odds: ${JSON.stringify(matchContext.odds || {})}`
@@ -858,7 +870,7 @@ async function performResearch({ perplexityParams, openaiParams, geminiParams, q
                 const content = data?.choices?.[0]?.message?.content || "";
                 logger.debug(`[Orchestrator] Perplexity result: ${content.length} chars`);
                 return `[SOURCE: PERPLEXITY]\n${content}`;
-            }, [], 2);
+            }, [], 4);
         } catch (err) {
             console.warn("[Orchestrator] Perplexity FAILED:", err?.message || err);
             // fallthrough

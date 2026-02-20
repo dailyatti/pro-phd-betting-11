@@ -22,7 +22,7 @@ export const TestConnectionButton = ({ provider, apiKey, model, darkMode }) => {
             if (provider === 'openai') {
                 url = '/api/openai/chat/completions';
                 body = {
-                    model: model || 'gpt-4o',
+                    model: model || 'gpt-5.2-2025-12-11',
                     messages: [{ role: 'user', content: 'Hello (test)' }],
                     max_completion_tokens: 5
                 };

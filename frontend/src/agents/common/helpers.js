@@ -127,27 +127,64 @@ export const retryAsync = async (fn, args = [], maxAttempts = 3) => {
             return await fn(...args);
         } catch (e) {
             lastError = e;
+
+            // Log server error details safely
+            const status = e.response?.status;
+            if (e.response) {
+                const url = e.config?.url || 'unknown-url';
+                const errDetail = e.response.data ? stripFences(safeStringify(e.response.data)).substring(0, 500) : 'No data';
+                console.error(`[Retry] Server Error (${status}) at ${url}:`, errDetail);
+            }
+
             if (attempt >= maxAttempts) {
                 console.error(`[Retry] All ${maxAttempts} attempts failed. Last error:`, e.message);
                 throw e;
             }
 
-            // Log server error details safely
-            if (e.response) {
-                const url = e.config?.url || 'unknown-url';
-                const status = e.response.status;
-                const errDetail = e.response.data ? stripFences(safeStringify(e.response.data)).substring(0, 500) : 'No data';
-                console.error(`[Retry] Server Error (${status}) at ${url}:`, errDetail);
+            // Smart backoff: 429 rate limit gets longer wait based on retry-after header
+            let delay;
+            if (status === 429) {
+                // Parse retry-after from error response or use progressive backoff
+                const retryAfterMs = parseRetryAfter(e.response);
+                delay = retryAfterMs || Math.pow(2, attempt) * 3000; // 6s, 12s, 24s for rate limits
+                console.warn(`[Retry] Rate limited (429). Waiting ${(delay / 1000).toFixed(1)}s before retry...`);
+            } else {
+                // Standard exponential backoff: 1s, 2s, 4s...
+                delay = Math.pow(2, attempt - 1) * 1000;
             }
 
-            // Exponential Backoff: 1s, 2s, 4s...
-            const delay = Math.pow(2, attempt - 1) * 1000;
             console.warn(`[Retry] Attempt ${attempt} failed: ${e.message}. Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 
     throw lastError;
+};
+
+/**
+ * Parse retry-after from a 429 response (OpenAI format)
+ * @param {Object} response - Axios response object
+ * @returns {number|null} Delay in milliseconds, or null
+ */
+const parseRetryAfter = (response) => {
+    if (!response) return null;
+
+    // Check Retry-After header
+    const retryAfter = response.headers?.['retry-after'];
+    if (retryAfter) {
+        const secs = parseFloat(retryAfter);
+        if (Number.isFinite(secs) && secs > 0) return Math.ceil(secs * 1000) + 500;
+    }
+
+    // Parse from OpenAI error body: "Please try again in 7.678s"
+    const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data || '');
+    const match = body.match(/try again in ([\d.]+)s/i);
+    if (match) {
+        const secs = parseFloat(match[1]);
+        if (Number.isFinite(secs) && secs > 0) return Math.ceil(secs * 1000) + 500;
+    }
+
+    return null;
 };
 
 // ============================================================================

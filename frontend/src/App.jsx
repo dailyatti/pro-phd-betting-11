@@ -319,7 +319,7 @@ function App() {
 
     try {
       const openaiKey = apiKeys?.openai;
-      const parserModel = modelSettings?.openai || 'gpt-4.1-mini';
+      const parserModel = modelSettings?.openai || 'gpt-5.2-2025-12-11';
       let parsedMatches;
 
       if (openaiKey) {

@@ -50,15 +50,6 @@ const StrategyContent = ({ data, isLoading = false, darkMode = true, onAddToHist
         />
 
         {strategies.map((strat, i) => {
-          // STRICT FILTER: Check if this strategy has ANY positive EV bets
-          // If not, hide the entire match card (including header)
-          const hasActionableBets = Array.isArray(strat.recommendations) && strat.recommendations.some(r => {
-            const edge = toNumber(r?.math_proof?.edge ?? r?.ev);
-            return edge > 0;
-          });
-
-          if (!hasActionableBets) return null;
-
           return (
             <div key={`${strat?.matchLabel ?? "match"}-${i}`} className="space-y-6">
               <MatchHeader label={strat?.matchLabel ?? `Match #${i + 1}`} sport={strat?.sport} darkMode={darkMode} />
